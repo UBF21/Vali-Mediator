@@ -1,0 +1,29 @@
+# Archivos y carpetas de Rider
+.idea/
+*.sln.iml
+
+# Archivos de build
+bin/
+obj/
+
+# Archivos de configuración del usuario
+*.user
+*.suo
+*.userprefs
+
+# Archivos de log
+*.log
+
+# Archivos de cache
+*.cache
+*.tmp
+*.temp
+
+# Archivos de paquetes y dependencias
+packages/
+*.nupkg
+*.snupkg
+
+# Archivos de configuración de Visual Studio
+.vscode/
+.vs/
