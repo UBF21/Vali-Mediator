@@ -1,0 +1,36 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+
+        <TargetFrameworks>net7.0;net8.0;net9.0</TargetFrameworks>
+        <RootNamespace>Vali_Mediator</RootNamespace>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <Title>Vali-Mediator</Title>
+        <Authors>Felipe Rafael Montenegro Morriberon</Authors>
+        <Description>Vali-Mediator is a lightweight .NET library for implementing the Mediator pattern with CQRS support. It simplifies request handling, pipeline behaviors, and event notifications through a fluent and extensible API. Designed for seamless integration with dependency injection, it enables developers to manage commands, queries, and notifications efficiently.</Description>
+        <PackageProjectUrl>#</PackageProjectUrl>
+        <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+        <RepositoryUrl>https://github.com/UBF21/Vali-Mediator</RepositoryUrl>
+        <RepositoryType>git</RepositoryType>
+        <PackageReleaseNotes>Initial release of Vali-Mediator (v1.0.0). Supports .NET 7, 8, and 9 with CQRS, pipeline behaviors, and notification handling.</PackageReleaseNotes>
+        <PackageRequireLicenseAcceptance>true</PackageRequireLicenseAcceptance>
+        <Copyright>Copyright © 2025 - FM. All rights reserved.</Copyright>
+        <Version>1.0.0</Version>
+        <PackageIcon>logo.png</PackageIcon>
+        <PackageId>Vali-Mediator</PackageId>
+        <Product>Vali-Mediator</Product>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <None Include="logo.png">
+            <Pack>True</Pack>
+            <PackagePath></PackagePath>
+        </None>
+    </ItemGroup>
+    
+    <ItemGroup>
+        <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="7.0.0"/>
+    </ItemGroup>
+
+</Project>

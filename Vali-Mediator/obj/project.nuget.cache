@@ -1,0 +1,12 @@
+{
+  "version": 2,
+  "dgSpecHash": "NoUzyoUmp3w=",
+  "success": true,
+  "projectFilePath": "/Users/isw21/RiderProjects/Vali-Mediator/Vali-Mediator/Vali-Mediator.csproj",
+  "expectedPackageFiles": [
+    "/Users/isw21/.nuget/packages/microsoft.extensions.dependencyinjection.abstractions/7.0.0/microsoft.extensions.dependencyinjection.abstractions.7.0.0.nupkg.sha512",
+    "/Users/isw21/.nuget/packages/microsoft.netcore.app.ref/8.0.14/microsoft.netcore.app.ref.8.0.14.nupkg.sha512",
+    "/Users/isw21/.nuget/packages/microsoft.aspnetcore.app.ref/8.0.14/microsoft.aspnetcore.app.ref.8.0.14.nupkg.sha512"
+  ],
+  "logs": []
+}

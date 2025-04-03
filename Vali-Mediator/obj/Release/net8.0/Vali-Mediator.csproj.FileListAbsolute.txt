@@ -1,0 +1,12 @@
+/Users/isw21/RiderProjects/Vali-Mediator/Vali-Mediator/bin/Release/net8.0/Vali-Mediator.deps.json
+/Users/isw21/RiderProjects/Vali-Mediator/Vali-Mediator/bin/Release/net8.0/Vali-Mediator.dll
+/Users/isw21/RiderProjects/Vali-Mediator/Vali-Mediator/bin/Release/net8.0/Vali-Mediator.pdb
+/Users/isw21/RiderProjects/Vali-Mediator/Vali-Mediator/obj/Release/net8.0/Vali-Mediator.csproj.AssemblyReference.cache
+/Users/isw21/RiderProjects/Vali-Mediator/Vali-Mediator/obj/Release/net8.0/Vali-Mediator.GeneratedMSBuildEditorConfig.editorconfig
+/Users/isw21/RiderProjects/Vali-Mediator/Vali-Mediator/obj/Release/net8.0/Vali-Mediator.AssemblyInfoInputs.cache
+/Users/isw21/RiderProjects/Vali-Mediator/Vali-Mediator/obj/Release/net8.0/Vali-Mediator.AssemblyInfo.cs
+/Users/isw21/RiderProjects/Vali-Mediator/Vali-Mediator/obj/Release/net8.0/Vali-Mediator.csproj.CoreCompileInputs.cache
+/Users/isw21/RiderProjects/Vali-Mediator/Vali-Mediator/obj/Release/net8.0/Vali-Mediator.dll
+/Users/isw21/RiderProjects/Vali-Mediator/Vali-Mediator/obj/Release/net8.0/refint/Vali-Mediator.dll
+/Users/isw21/RiderProjects/Vali-Mediator/Vali-Mediator/obj/Release/net8.0/Vali-Mediator.pdb
+/Users/isw21/RiderProjects/Vali-Mediator/Vali-Mediator/obj/Release/net8.0/ref/Vali-Mediator.dll
