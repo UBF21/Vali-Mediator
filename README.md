@@ -1,4 +1,4 @@
-# Vali-Mediator - Lightweight Mediator Pattern for .NET
+#  <img src="https://github.com/UBF21/Vali-Mediator/blob/main/Vali-Mediator/logo.png?raw=true" alt="Logo de Vali Mediator" style="width: 46px; height: 46px; max-width: 300px;">   Vali-Mediator - Lightweight Mediator Pattern for .NET  
 
 
 ## Introduction 🚀
