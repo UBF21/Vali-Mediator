@@ -1,3 +1,4 @@
+using Vali_Mediator.Core.FireAndForget;
 using Vali_Mediator.Core.Notification;
 using Vali_Mediator.Core.Request;
 
@@ -26,4 +27,7 @@ public interface IValiMediator
     /// <returns>A task representing the asynchronous operation.</returns>
     Task Publish<TNotification>(TNotification notification, CancellationToken cancellationToken = default)
         where TNotification : INotification;
+    
+    Task Send(IFireAndForget fireAndForget, CancellationToken cancellationToken = default);
+
 }

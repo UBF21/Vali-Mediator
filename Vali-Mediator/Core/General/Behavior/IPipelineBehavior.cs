@@ -1,3 +1,4 @@
+using Vali_Mediator.Core.General.Base;
 using Vali_Mediator.Core.Request;
 
 namespace Vali_Mediator.Core.General.Behavior;
@@ -17,4 +18,9 @@ public interface IPipelineBehavior<in TRequest, TResponse>
     /// <param name="cancellationToken">A token to monitor for cancellation requests.</param>
     /// <returns>A task representing the asynchronous operation, containing the response of type <typeparamref name="TResponse"/>.</returns>
     Task<TResponse> Handle(TRequest request, Func<Task<TResponse>> next, CancellationToken cancellationToken);
+}
+
+public interface IPipelineBehavior<in TRequest> where TRequest : IDispatch
+{
+    Task Handle(TRequest request, Func<Task> next, CancellationToken cancellationToken);
 }
