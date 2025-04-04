@@ -208,7 +208,7 @@ Follow the project on GitHub for updates on new features and improvements!
 ## Donations 💖
 If you find ValiFlow useful and would like to support its development, consider making a donation:
 
-- **For Latin America**: [Donate via MercadoPago](link.mercadopago.com.pe/felipermm)
+- **For Latin America**: [Donate via MercadoPago](https://link.mercadopago.com.pe/felipermm)
 - **For International Donations**: [Donate via PayPal](https://paypal.me/felipeRMM?country.x=PE&locale.x=es_XC)
 
 
