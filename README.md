@@ -178,7 +178,7 @@ using Vali_Mediator.Core.Request;
 using Vali_Mediator.Core.General.Mediator;
 
 // Define a compensable request
-public class CreateOrderCommand : CompensableBase, IRequest<bool>
+public class CreateOrderCommand : Compensable, IRequest<bool>
 {
     public string OrderId { get; set; }
 
