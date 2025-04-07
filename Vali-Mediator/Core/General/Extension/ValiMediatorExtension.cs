@@ -57,12 +57,12 @@ public static class ValiMediatorExtension
                 services.AddScoped(interfaceType, handlerType);
             }
 
-            var commandHandlerTypes = assemblies
+            var fireAndForgetHandlerTypes = assemblies
                 .SelectMany(a => a.GetTypes())
                 .Where(t => t.IsClass && !t.IsAbstract && t.GetInterfaces()
                     .Any(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IFireAndForgetHandler<>)));
 
-            foreach (var handlerType in commandHandlerTypes)
+            foreach (var handlerType in fireAndForgetHandlerTypes)
             {
                 var interfaceType = handlerType.GetInterfaces()
                     .First(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IFireAndForgetHandler<>));

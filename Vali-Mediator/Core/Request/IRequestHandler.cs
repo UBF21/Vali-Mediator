@@ -1,3 +1,5 @@
+using Vali_Mediator.Core.General.Mediator;
+
 namespace Vali_Mediator.Core.Request;
 
 /// <summary>
@@ -5,6 +7,11 @@ namespace Vali_Mediator.Core.Request;
 /// </summary>
 /// <typeparam name="TRequest">The type of the request to handle. Must implement <see cref="IRequest{TResponse}"/>.</typeparam>
 /// <typeparam name="TResponse">The type of the response returned by handling the request.</typeparam>
+/// <remarks>
+/// Implementations of this interface are responsible for processing requests of type <typeparamref name="TRequest"/> 
+/// dispatched via the <see cref="IValiMediator.Send{TResponse}"/> method and producing a response of type <typeparamref name="TResponse"/>.
+/// This enables a request-response pattern within the Mediator framework, where each request is handled by a single handler.
+/// </remarks>
 public interface IRequestHandler<in TRequest, TResponse>
     where TRequest : IRequest<TResponse>
 {

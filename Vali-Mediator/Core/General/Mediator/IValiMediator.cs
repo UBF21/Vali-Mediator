@@ -28,6 +28,28 @@ public interface IValiMediator
     Task Publish<TNotification>(TNotification notification, CancellationToken cancellationToken = default)
         where TNotification : INotification;
     
+    /// <summary>
+    /// Sends a fire-and-forget command to be processed asynchronously by its corresponding handler, optionally through a pipeline of behaviors.
+    /// </summary>
+    /// <param name="fireAndForget">
+    /// The fire-and-forget command to dispatch, which must implement <see cref="IFireAndForget"/>.
+    /// </param>
+    /// <param name="cancellationToken">
+    /// A token to monitor for cancellation requests. Defaults to <see cref="CancellationToken.None"/>.
+    /// </param>
+    /// <returns>
+    /// A <see cref="Task"/> representing the asynchronous operation of processing the command.
+    /// </returns>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown if <paramref name="fireAndForget"/> is <c>null</c>.
+    /// </exception>
+    /// <exception cref="InvalidOperationException">
+    /// Thrown if no handler is registered for the specified <paramref name="fireAndForget"/> type.
+    /// </exception>
+    /// <remarks>
+    /// This method dispatches the command to an <see cref="IFireAndForgetHandler{TFireAndForget}"/> registered with the Mediator.
+    /// It is designed for operations that modify state or trigger side effects without returning a response, optionally processed through a pipeline.
+    /// </remarks>
     Task Send(IFireAndForget fireAndForget, CancellationToken cancellationToken = default);
 
 }
