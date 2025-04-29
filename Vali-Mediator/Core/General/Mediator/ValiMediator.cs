@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Vali_Mediator.Core.FireAndForget;
 using Vali_Mediator.Core.General.Behavior;
 using Vali_Mediator.Core.Notification;
+using Vali_Mediator.Core.Processors;
 using Vali_Mediator.Core.Request;
 
 namespace Vali_Mediator.Core.General.Mediator;
@@ -26,16 +27,32 @@ public class ValiMediator : IValiMediator
         var requestType = request.GetType();
         var handlerType = typeof(IRequestHandler<,>).MakeGenericType(requestType, typeof(TResponse));
         var handler = _serviceProvider.GetService(handlerType) 
-                      ?? throw new InvalidOperationException($"No se encontró un manejador para la solicitud {requestType.Name}");
+                      ?? throw new InvalidOperationException($"No handler found for the request {requestType.Name}");
 
+        // Obtener preprocesadores
+        var preProcessorType = typeof(IPreProcessor<,>).MakeGenericType(requestType, typeof(TResponse));
+        var preProcessors = _serviceProvider.GetServices(preProcessorType).ToList();
+        
+        // Obtener comportamientos
         var behaviorType = typeof(IPipelineBehavior<,>).MakeGenericType(requestType, typeof(TResponse));
         var behaviors = _serviceProvider.GetServices(behaviorType).Reverse().ToList();
+        
+        // Obtener postprocesadores
+        var postProcessorType = typeof(IPostProcessor<,>).MakeGenericType(requestType, typeof(TResponse));
+        var postProcessors = _serviceProvider.GetServices(postProcessorType).ToList();
 
+        // Ejecutar preprocesadores
+        foreach (var preProcessor in preProcessors)
+        {
+            var preProcessorMethod = preProcessorType.GetMethod("Process");
+            preProcessorMethod?.Invoke(preProcessor, new object[] { request, cancellationToken });
+        }
+        
         // Función que ejecuta el manejador
         Func<Task<TResponse>> handlerDelegate = async () =>
         {
             var method = handlerType.GetMethod("Handle");
-            return await (Task<TResponse>)method.Invoke(handler, new object[] { request, cancellationToken });
+            return await (Task<TResponse>)method?.Invoke(handler, new object[] { request, cancellationToken })!;
         };
 
         // Construir el pipeline
@@ -45,10 +62,19 @@ public class ValiMediator : IValiMediator
             var currentNext = next;
             var behaviorGenericType = typeof(IPipelineBehavior<,>).MakeGenericType(requestType, typeof(TResponse));
             var behaviorMethod = behaviorGenericType.GetMethod("Handle");
-            next = () => (Task<TResponse>)behaviorMethod.Invoke(behavior, new object[] { request, currentNext, cancellationToken });
+            next = () => (Task<TResponse>)behaviorMethod?.Invoke(behavior, new object[] { request, currentNext, cancellationToken })!;
         }
 
-        return await next();
+        var response = await next();
+        
+        // Ejecutar postprocesadores
+        foreach (var postProcessor in postProcessors)
+        {
+            var postProcessorMethod = postProcessorType.GetMethod("Process");
+            if (response != null) postProcessorMethod?.Invoke(postProcessor, new object[] { request, response, cancellationToken });
+        }   
+        
+        return response;
     }
 
     public async Task Publish<TNotification>(TNotification notification, CancellationToken cancellationToken = default)
@@ -58,13 +84,28 @@ public class ValiMediator : IValiMediator
 
         var notificationType = typeof(INotificationHandler<>).MakeGenericType(typeof(TNotification));
         var handlers = _serviceProvider.GetServices(notificationType)
-            .Cast<INotificationHandler<TNotification>>();
+            .Cast<INotificationHandler<TNotification>>()
+            .OrderByDescending(h => h.Priority);
+        
+        // Obtener preprocesadores
+        var preProcessorType = typeof(IPreProcessor<>).MakeGenericType(typeof(TNotification));
+        var preProcessors = _serviceProvider.GetServices(preProcessorType).ToList();
 
+        // Obtener comportamientos
         var behaviorType = typeof(IPipelineBehavior<>).MakeGenericType(typeof(TNotification));
         var behaviors = _serviceProvider.GetServices(behaviorType).Reverse().ToList();
+        
+        // Obtener postprocesadores
+        var postProcessorType = typeof(IPostProcessor<>).MakeGenericType(typeof(TNotification));
+        var postProcessors = _serviceProvider.GetServices(postProcessorType).ToList();
 
-        Console.WriteLine($"Found {behaviors.Count} behaviors and {handlers.Count()} handlers for {typeof(TNotification).Name}");
-
+        // Ejecutar preprocesadores
+        foreach (var preProcessor in preProcessors)
+        {
+            var preProcessorMethod = preProcessorType.GetMethod("Process");
+            preProcessorMethod?.Invoke(preProcessor, new object[] { notification, cancellationToken });
+        }
+        
         foreach (var handler in handlers)
         {
             var handlerMethod = handler.GetType().GetMethod("Handle");
@@ -86,6 +127,13 @@ public class ValiMediator : IValiMediator
 
             await next();
         }
+        
+        // Ejecutar postprocesadores
+        foreach (var postProcessor in postProcessors)
+        {
+            var postProcessorMethod = postProcessorType.GetMethod("Process");
+            postProcessorMethod?.Invoke(postProcessor, new object[] { notification, cancellationToken });
+        }
     }
 
     public async Task Send(IFireAndForget fireAndForget, CancellationToken cancellationToken = default)
@@ -97,10 +145,25 @@ public class ValiMediator : IValiMediator
         var handler = _serviceProvider.GetService(handlerType) ??
                       throw new InvalidOperationException($"No handler found for the command {commandType.Name}");
 
+        // Obtener preprocesadores
+        var preProcessorType = typeof(IPreProcessor<>).MakeGenericType(commandType);
+        var preProcessors = _serviceProvider.GetServices(preProcessorType).ToList();
+        
         // Usar IPipelineBehavior<> con un solo parámetro genérico
         var behaviorType = typeof(IPipelineBehavior<>).MakeGenericType(commandType);
         var behaviors = _serviceProvider.GetServices(behaviorType).Reverse().ToList();
 
+        // Obtener postprocesadores
+        var postProcessorType = typeof(IPostProcessor<>).MakeGenericType(commandType);
+        var postProcessors = _serviceProvider.GetServices(postProcessorType).ToList();
+        
+        // Ejecutar preprocesadores
+        foreach (var preProcessor in preProcessors)
+        {
+            var preProcessorMethod = preProcessorType.GetMethod("Process");
+            preProcessorMethod?.Invoke(preProcessor, new object[] { fireAndForget, cancellationToken });
+        }
+        
         var handlerMethod = handlerType.GetMethod("Handle");
         if (handlerMethod == null)
         {
@@ -127,5 +190,12 @@ public class ValiMediator : IValiMediator
         }
 
         await next();
+        
+        // Ejecutar postprocesadores
+        foreach (var postProcessor in postProcessors)
+        {
+            var postProcessorMethod = postProcessorType.GetMethod("Process");
+            postProcessorMethod?.Invoke(postProcessor, new object[] { fireAndForget, cancellationToken });
+        }
     }
 }

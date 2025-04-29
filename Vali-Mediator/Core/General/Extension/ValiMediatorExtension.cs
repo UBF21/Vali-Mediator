@@ -1,9 +1,11 @@
+using System.Reflection;
 using Microsoft.Extensions.DependencyInjection;
 using Vali_Mediator.Core.FireAndForget;
 using Vali_Mediator.Core.General.Base;
 using Vali_Mediator.Core.General.Behavior;
 using Vali_Mediator.Core.General.Mediator;
 using Vali_Mediator.Core.Notification;
+using Vali_Mediator.Core.Processors;
 using Vali_Mediator.Core.Request;
 
 namespace Vali_Mediator.Core.General.Extension;
@@ -29,49 +31,50 @@ public static class ValiMediatorExtension
 
         services.AddScoped<IValiMediator, ValiMediator>();
 
-        var assemblies = config.GetAssemblies().ToList();
+        List<Assembly> assemblies = config.GetAssemblies().ToList();
+
         if (assemblies.Any())
         {
-            var handlerTypes = assemblies
+            IEnumerable<Type> handlerTypes = assemblies
                 .SelectMany(a => a.GetTypes())
-                .Where(t => t.IsClass && !t.IsAbstract && t.GetInterfaces()
+                .Where(t => t is { IsClass: true, IsAbstract: false } && t.GetInterfaces()
                     .Any(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IRequestHandler<,>)));
 
-            foreach (var handlerType in handlerTypes)
+            foreach (Type handlerType in handlerTypes)
             {
-                var interfaceType = handlerType.GetInterfaces()
+                Type interfaceType = handlerType.GetInterfaces()
                     .First(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IRequestHandler<,>));
                 services.AddScoped(interfaceType, handlerType);
             }
 
             // Registrar INotificationHandler
-            var notificationHandlerTypes = assemblies
+            IEnumerable<Type> notificationHandlerTypes = assemblies
                 .SelectMany(a => a.GetTypes())
-                .Where(t => t.IsClass && !t.IsAbstract && t.GetInterfaces()
+                .Where(t => t is { IsClass: true, IsAbstract: false } && t.GetInterfaces()
                     .Any(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(INotificationHandler<>)));
 
-            foreach (var handlerType in notificationHandlerTypes)
+            foreach (Type handlerType in notificationHandlerTypes)
             {
-                var interfaceType = handlerType.GetInterfaces()
+                Type interfaceType = handlerType.GetInterfaces()
                     .First(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(INotificationHandler<>));
                 services.AddScoped(interfaceType, handlerType);
             }
 
-            var fireAndForgetHandlerTypes = assemblies
+            IEnumerable<Type> fireAndForgetHandlerTypes = assemblies
                 .SelectMany(a => a.GetTypes())
-                .Where(t => t.IsClass && !t.IsAbstract && t.GetInterfaces()
+                .Where(t => t is { IsClass: true, IsAbstract: false } && t.GetInterfaces()
                     .Any(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IFireAndForgetHandler<>)));
 
-            foreach (var handlerType in fireAndForgetHandlerTypes)
+            foreach (Type handlerType in fireAndForgetHandlerTypes)
             {
-                var interfaceType = handlerType.GetInterfaces()
+                Type interfaceType = handlerType.GetInterfaces()
                     .First(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IFireAndForgetHandler<>));
                 services.AddScoped(interfaceType, handlerType);
             }
         }
 
         // Registrar solo comportamientos explícitos
-        foreach (var behavior in config.GetBehaviors())
+        foreach (KeyValuePair<Type,Type> behavior in config.GetBehaviors())
         {
             if (behavior.Key.IsGenericType && behavior.Key.GetGenericTypeDefinition() == typeof(IPipelineBehavior<,>))
             {
@@ -81,20 +84,105 @@ public static class ValiMediatorExtension
                      behavior.Key.GetGenericTypeDefinition() == typeof(IPipelineBehavior<>))
             {
                 // Asegurarse de que el comportamiento se aplique a tipos específicos como LogProductCommand
-                var requestTypes = assemblies
+                IEnumerable<Type> requestTypes = assemblies
                     .SelectMany(a => a.GetTypes())
-                    .Where(t => typeof(IDispatch).IsAssignableFrom(t) && !t.IsInterface && !t.IsAbstract);
+                    .Where(t => typeof(IDispatch).IsAssignableFrom(t) &&
+                                t is { IsInterface: false, IsAbstract: false });
 
-                foreach (var requestType in requestTypes)
+                foreach (Type requestType in requestTypes)
                 {
-                    var specificBehaviorType = behavior.Value.MakeGenericType(requestType);
-                    var specificInterfaceType = typeof(IPipelineBehavior<>).MakeGenericType(requestType);
+                    Type specificBehaviorType = behavior.Value.MakeGenericType(requestType);
+                    Type specificInterfaceType = typeof(IPipelineBehavior<>).MakeGenericType(requestType);
                     services.AddScoped(specificInterfaceType, specificBehaviorType);
                 }
             }
             else
             {
                 throw new ArgumentException($"Unsupported behavior type: {behavior.Key}");
+            }
+        }
+
+        // Registrar preprocesadores para IDispatch (INotification, IFireAndForget)
+        foreach (KeyValuePair<Type,Type> preProcessor in config.GetPreProcessors())
+        {
+            IEnumerable<Type> requestTypes = assemblies
+                .SelectMany(a => a.GetTypes())
+                .Where(t => typeof(IDispatch).IsAssignableFrom(t) && t is { IsInterface: false, IsAbstract: false });
+
+            foreach (Type requestType in requestTypes)
+            {
+                Type specificInterfaceType = typeof(IPreProcessor<>).MakeGenericType(requestType);
+                if (preProcessor.Key.GetGenericArguments().Length == 1 &&
+                    preProcessor.Key.GetGenericArguments()[0] == requestType)
+                {
+                    services.AddScoped(specificInterfaceType, preProcessor.Value);
+                }
+            }
+        }
+
+        // Registrar postprocesadores para IDispatch (INotification, IFireAndForget)
+        foreach (KeyValuePair<Type,Type> postProcessor in config.GetPostProcessors())
+        {
+            IEnumerable<Type> requestTypes = assemblies
+                .SelectMany(a => a.GetTypes())
+                .Where(t => typeof(IDispatch).IsAssignableFrom(t) && t is { IsInterface: false, IsAbstract: false });
+
+            foreach (Type requestType in requestTypes)
+            {
+                Type specificInterfaceType = typeof(IPostProcessor<>).MakeGenericType(requestType);
+                if (postProcessor.Key.GetGenericArguments().Length == 1 &&
+                    postProcessor.Key.GetGenericArguments()[0] == requestType)
+                {
+                    services.AddScoped(specificInterfaceType, postProcessor.Value);
+                }
+            }
+        }
+
+        // Registrar preprocesadores para IRequest<TResponse>
+        foreach (KeyValuePair<Type,Type> preProcessor in config.GetRequestPreProcessors())
+        {
+            IEnumerable<Type> requestTypes = assemblies
+                .SelectMany(a => a.GetTypes())
+                .Where(t => t.GetInterfaces()
+                                .Any(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IRequest<>)) &&
+                            t is { IsInterface: false, IsAbstract: false });
+
+            foreach (Type requestType in requestTypes)
+            {
+                Type requestInterface = requestType.GetInterfaces()
+                    .First(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IRequest<>));
+                Type responseType = requestInterface.GetGenericArguments()[0];
+                Type specificInterfaceType = typeof(IPreProcessor<,>).MakeGenericType(requestType, responseType);
+                if (preProcessor.Key.GetGenericArguments().Length == 2 &&
+                    preProcessor.Key.GetGenericArguments()[0] == requestType &&
+                    preProcessor.Key.GetGenericArguments()[1] == responseType)
+                {
+                    services.AddScoped(specificInterfaceType, preProcessor.Value);
+                }
+            }
+        }
+
+        // Registrar postprocesadores para IRequest
+        foreach (KeyValuePair<Type, Type> postProcessor in config.GetRequestPostProcessors())
+        {
+            IEnumerable<Type> requestTypes = assemblies
+                .SelectMany(a => a.GetTypes())
+                .Where(t => t.GetInterfaces()
+                                .Any(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IRequest<>)) &&
+                            t is { IsInterface: false, IsAbstract: false });
+
+            foreach (Type requestType in requestTypes)
+            {
+                Type requestInterface = requestType.GetInterfaces()
+                    .First(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IRequest<>));
+                Type responseType = requestInterface.GetGenericArguments()[0];
+                Type specificInterfaceType = typeof(IPostProcessor<,>).MakeGenericType(requestType, responseType);
+                if (postProcessor.Key.GetGenericArguments().Length == 2 &&
+                    postProcessor.Key.GetGenericArguments()[0] == requestType &&
+                    postProcessor.Key.GetGenericArguments()[1] == responseType)
+                {
+                    services.AddScoped(specificInterfaceType, postProcessor.Value);
+                }
             }
         }
 

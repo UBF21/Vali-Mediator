@@ -21,4 +21,11 @@ public interface INotificationHandler<in TNotification>
     /// <param name="cancellationToken">A token to monitor for cancellation requests.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
     Task Handle(TNotification notification, CancellationToken cancellationToken);
+    
+    /// <summary>
+    /// Gets the priority of the handler, determining the order of execution.
+    /// Higher values indicate higher priority, causing the handler to execute earlier.
+    /// </summary>
+    int Priority { get; }   
+
 }
