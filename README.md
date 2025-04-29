@@ -1,4 +1,4 @@
-#  <img src="https://github.com/UBF21/Vali-Mediator/blob/main/Vali-Mediator/logo.png?raw=true" alt="Logo de Vali Mediator" style="width: 46px; height: 46px; max-width: 300px;">   Vali-Mediator - Lightweight Mediator Pattern for .NET  
+#  <img src="https://github.com/UBF21/Vali-Mediator/blob/main/Vali-Mediator/Vali_Mediator_logo.png?raw=true" alt="Logo de Vali Mediator" style="width: 46px; height: 46px; max-width: 300px;">   Vali-Mediator - Lightweight Mediator Pattern for .NET  
 
 ## Introduction 🚀
 Welcome to Vali-Mediator, a lightweight .NET library that implements the Mediator pattern with CQRS support. Designed to simplify request handling, pipeline behaviors, and event notifications, Vali-Mediator offers a fluent and extensible API. It integrates seamlessly with dependency injection, making it perfect for managing commands, queries, notifications, and now, fire-and-forget operations and compensation flows in your .NET applications.
