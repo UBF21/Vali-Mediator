@@ -4,12 +4,12 @@ namespace Vali_Mediator.Core.Notification;
 
 /// <summary>
 /// Defines a handler for processing a specific notification.
+/// Multiple handlers can subscribe to the same notification, enabling a publish-subscribe pattern.
 /// </summary>
 /// <typeparam name="TNotification">The type of the notification to handle. Must implement <see cref="INotification"/>.</typeparam>
 /// <remarks>
-/// Implementations of this interface are responsible for processing notifications of type <typeparamref name="TNotification"/> 
-/// dispatched via the <see cref="IValiMediator.Publish{TNotification}"/> method. Multiple handlers can subscribe to the same 
-/// notification, enabling a publish-subscribe pattern within the Mediator framework.
+/// Implementations are invoked via <see cref="IValiMediator.Publish{TNotification}"/> in descending
+/// <see cref="Priority"/> order. Handlers with the same priority execute in registration order.
 /// </remarks>
 public interface INotificationHandler<in TNotification>
     where TNotification : INotification
@@ -19,13 +19,11 @@ public interface INotificationHandler<in TNotification>
     /// </summary>
     /// <param name="notification">The notification object to process.</param>
     /// <param name="cancellationToken">A token to monitor for cancellation requests.</param>
-    /// <returns>A task representing the asynchronous operation.</returns>
     Task Handle(TNotification notification, CancellationToken cancellationToken);
-    
-    /// <summary>
-    /// Gets the priority of the handler, determining the order of execution.
-    /// Higher values indicate higher priority, causing the handler to execute earlier.
-    /// </summary>
-    int Priority { get; }   
 
+    /// <summary>
+    /// Gets the execution priority of this handler.
+    /// Higher values execute first. Defaults to <c>0</c>.
+    /// </summary>
+    int Priority => 0;
 }

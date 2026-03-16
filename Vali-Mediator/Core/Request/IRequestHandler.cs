@@ -23,3 +23,13 @@ public interface IRequestHandler<in TRequest, TResponse>
     /// <returns>A task representing the asynchronous operation, containing the response of type <typeparamref name="TResponse"/>.</returns>
     Task<TResponse> Handle(TRequest request, CancellationToken cancellationToken);
 }
+
+/// <summary>
+/// Shorthand for <see cref="IRequestHandler{TRequest, Unit}"/>.
+/// Implement this for commands or void-returning requests that use <see cref="IRequest"/> (non-generic).
+/// </summary>
+/// <typeparam name="TRequest">The type of the request to handle. Must implement <see cref="IRequest"/>.</typeparam>
+public interface IRequestHandler<in TRequest> : IRequestHandler<TRequest, Unit>
+    where TRequest : IRequest
+{
+}

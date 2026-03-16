@@ -1,0 +1,72 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFrameworks>net7.0;net8.0;net9.0</TargetFrameworks>
+        <RootNamespace>Vali_Mediator_Idempotency</RootNamespace>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+
+        <!-- Package identity -->
+        <PackageId>Vali-Mediator.Idempotency</PackageId>
+        <Version>1.0.0</Version>
+        <Title>Vali-Mediator.Idempotency</Title>
+        <Product>Vali-Mediator.Idempotency</Product>
+        <Authors>Felipe Rafael Montenegro Morriberon</Authors>
+        <Copyright>Copyright © 2025 - FM. All rights reserved.</Copyright>
+
+        <!-- Repository -->
+        <RepositoryUrl>https://github.com/UBF21/Vali-Mediator</RepositoryUrl>
+        <RepositoryType>git</RepositoryType>
+        <PackageProjectUrl>https://vali-mediator-docs.netlify.app/docs/idempotency/overview</PackageProjectUrl>
+
+        <!-- License -->
+        <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+        <PackageRequireLicenseAcceptance>true</PackageRequireLicenseAcceptance>
+
+        <!-- Discoverability -->
+        <PackageTags>idempotency;mediator;cqrs;pipeline;dotnet;di;clean-architecture;vali;idempotent</PackageTags>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+
+        <!-- Source Link / Symbols -->
+        <PublishRepositoryUrl>true</PublishRepositoryUrl>
+        <EmbedUntrackedSources>true</EmbedUntrackedSources>
+        <DebugType>embedded</DebugType>
+        <IncludeSymbols>true</IncludeSymbols>
+        <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+
+        <Description>
+            Idempotency integration library for Vali-Mediator (.NET 7/8/9).
+            Provides an IIdempotent marker interface, an IIdempotencyStore abstraction,
+            an in-memory implementation with expiry and lazy cleanup, a JSON serializer,
+            and an IdempotencyBehavior pipeline that prevents duplicate request execution.
+            Zero external dependencies beyond Microsoft.Extensions.DependencyInjection.Abstractions
+            and Vali-Mediator.
+        </Description>
+
+        <PackageReleaseNotes>
+            v1.0.0 — Initial release:
+            - IIdempotent: per-request idempotency key and optional expiry.
+            - IdempotencyEntry: serialized response envelope with expiry tracking.
+            - IIdempotencySerializer abstraction with System.Text.Json default implementation.
+            - IIdempotencyStore abstraction: FindAsync, StoreAsync, RemoveAsync, ExistsAsync.
+            - InMemoryIdempotencyStore: ConcurrentDictionary-backed with lazy expiry eviction and periodic cleanup sweep.
+            - IdempotencyBehavior: open-generic IPipelineBehavior with per-key SemaphoreSlim locking.
+            - AddIdempotencyBehavior() extension on ValiMediatorConfiguration.
+            - AddInMemoryIdempotencyStore() / AddIdempotencyStore&lt;TStore&gt;() / AddIdempotencySerializer&lt;TSerializer&gt;() on IServiceCollection.
+        </PackageReleaseNotes>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <None Include="README.md" Condition="Exists('README.md')">
+            <Pack>True</Pack>
+            <PackagePath>\</PackagePath>
+        </None>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Vali-Mediator\Vali-Mediator.csproj" />
+        <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="7.0.0" />
+        <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All" />
+    </ItemGroup>
+
+</Project>

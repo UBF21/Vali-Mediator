@@ -3,6 +3,17 @@
 ## Introduction 🚀
 Welcome to Vali-Mediator, a lightweight .NET library that implements the Mediator pattern with CQRS support. Designed to simplify request handling, pipeline behaviors, and event notifications, Vali-Mediator offers a fluent and extensible API. It integrates seamlessly with dependency injection, making it perfect for managing commands, queries, notifications, fire-and-forget operations, and compensation flows in your .NET applications.
 
+## Packages 📦
+
+| Package | Description |
+|---|---|
+| `Vali-Mediator` | Core library — mediator, CQRS, pipeline behaviors, Result pattern |
+| `Vali-Mediator.AspNetCore` | Maps `Result<T>` / `Result` to HTTP responses (MVC + Minimal API) |
+| `Vali-Mediator.Resilience` | Retry, Circuit Breaker, Timeout, Bulkhead, Hedge, Rate Limiter, Chaos, Fallback |
+| `Vali-Mediator.Caching` | Pipeline caching via `ICacheable` and `IInvalidatesCache` |
+| `Vali-Mediator.Observability` | OpenTelemetry tracing, metrics, and request lifecycle hooks |
+| `Vali-Mediator.Idempotency` | Replay protection via `IIdempotent` with pluggable store |
+
 ## Installation 📦
 To add Vali-Mediator to your .NET project, install it via NuGet with the following command:
 
@@ -535,32 +546,52 @@ int productId = await mediator.Send(new CreateProductCommand { Name = "Laptop", 
 
 ## Features and Enhancements 🌟
 
-### Recent Updates
+### v2.0.0 — Extension Packages
 
-- **Notification Handler Priority**: Added the `Priority` property to `INotificationHandler<TNotification>`, allowing handlers to be executed in a user-defined order (higher priority values execute first). This is useful for scenarios where certain actions (e.g., sending emails) must precede others (e.g., updating inventory).
-- **Pre-Processors and Post-Processors**: Introduced support for pre-processors and post-processors for `IRequest<TResponse>`, `INotification`, and `IFireAndForget`. Pre-processors run before handlers to perform validations or logging, while post-processors run after to process results or trigger secondary actions.
-- **Fire-and-Forget Support**: Added `IFireAndForget` for asynchronous operations without blocking for a response.
-- **Compensation Flows (Saga Pattern)**: Introduced compensation mechanisms to handle remediation for failed operations, ensuring data consistency.
-- **Extended Pipeline Behaviors**: Pipeline behaviors now apply to all dispatchable types (`IDispatch`), including requests, notifications, and fire-and-forget commands.
-- **Multi-targeting support** for .NET 7, 8, and 9.
+| Package | Description |
+|---|---|
+| `Vali-Mediator.Resilience` | Retry, Circuit Breaker, Timeout, Bulkhead, **Hedge**, **Rate Limiter**, **Chaos**, Fallback — zero external dependencies |
+| `Vali-Mediator.Caching` | Pipeline caching via `ICacheable` and `IInvalidatesCache` — pluggable store, group invalidation |
+| `Vali-Mediator.Observability` | `ActivitySource` for OpenTelemetry tracing, `IMetricsCollector`, `IRequestObserver` lifecycle hooks |
+| `Vali-Mediator.Idempotency` | Replay protection via `IIdempotent` — pluggable store, JSON serializer |
 
-### Planned Features
+### v2.0.0 — Core Improvements
 
-- Enhanced debugging tools for pipeline execution.
-- Support for advanced compensation flow orchestration.
+- **Result pattern** (`Result<T>` / `Result`): Ok/Fail factories, `Map`, `Bind`, `MapAsync`, `BindAsync`, `Tap`, `OnFailure`, `Match`, structured validation errors
+- **`SendAll<T>`**: dispatch multiple requests in parallel with `Task.WhenAll`
+- **`IHasTimeout`** + `TimeoutBehavior<T,R>`: declarative per-request timeouts in the pipeline
+- **`INotificationFilter<TNotification>`**: handler-level filter to conditionally skip handling
+- **`IDeadLetterQueue`** + `InMemoryDeadLetterQueue`: capture failed handlers during `ResilientParallel` without throwing
+- **`SendOrDefault`**: returns `default` when no handler is registered instead of throwing
+- **Streaming**: `IStreamRequest<T>` / `IStreamRequestHandler<TRequest,TResponse>` / `CreateStream`
+- **`PublishStrategy.ResilientParallel`**: all handlers run, failures collected separately
+- **`ServiceLifetime` control** for all registrations
+
+### Previous Updates
+
+- **Notification Handler Priority**: handlers ordered by `Priority` (higher = first)
+- **Pre/Post-Processors**: auto-discovered from assembly scan
+- **Fire-and-Forget Support**: `IFireAndForget` / `IFireAndForgetHandler<T>`
+- **Compensation Flows**: Saga pattern with `ICompensable`
+- **Multi-targeting**: .NET 7, 8, and 9
 
 Follow the project on GitHub for updates on new features and improvements!
 
-## Donations 💖
-If you find **Vali-Mediator** useful and would like to support its development, consider making a donation:
+---
 
-- **For Latin America**: [Donate via MercadoPago](https://link.mercadopago.com.pe/felipermm)
-- **For International Donations**: [Donate via PayPal](https://paypal.me/felipeRMM?country.x=PE&locale.x=es_XC)
+## Donations
 
-Your contributions help keep this project alive and improve its development! 🚀
+If Vali-Mediator is useful to you, consider supporting its development:
 
-## License 📜
-This project is licensed under the [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0).
+- **Latin America** — [MercadoPago](https://link.mercadopago.com.pe/felipermm)
+- **International** — [PayPal](https://paypal.me/felipeRMM?country.x=PE&locale.x=es_XC)
 
-## Contributions 🤝
-Feel free to open issues and submit pull requests to improve this library!
+---
+
+## License
+
+[Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0)
+
+## Contributions
+
+Issues and pull requests are welcome on [GitHub](https://github.com/UBF21/Vali-Mediator).

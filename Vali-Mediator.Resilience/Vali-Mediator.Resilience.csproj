@@ -1,0 +1,77 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFrameworks>net7.0;net8.0;net9.0</TargetFrameworks>
+        <RootNamespace>Vali_Mediator_Resilience</RootNamespace>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+
+        <!-- Package identity -->
+        <PackageId>Vali-Mediator.Resilience</PackageId>
+        <Version>1.0.0</Version>
+        <Title>Vali-Mediator.Resilience</Title>
+        <Product>Vali-Mediator.Resilience</Product>
+        <Authors>Felipe Rafael Montenegro Morriberon</Authors>
+        <Copyright>Copyright © 2025 - FM. All rights reserved.</Copyright>
+
+        <!-- Repository -->
+        <RepositoryUrl>https://github.com/UBF21/Vali-Mediator</RepositoryUrl>
+        <RepositoryType>git</RepositoryType>
+        <PackageProjectUrl>https://vali-mediator-docs.netlify.app/docs/resilience/overview</PackageProjectUrl>
+
+        <!-- License -->
+        <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+        <PackageRequireLicenseAcceptance>true</PackageRequireLicenseAcceptance>
+
+        <!-- Discoverability -->
+        <PackageTags>resilience;retry;circuit-breaker;timeout;fallback;bulkhead;mediator;cqrs;dotnet;vali</PackageTags>
+        <PackageIcon>logo.png</PackageIcon>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+
+        <!-- Source Link / Symbols -->
+        <PublishRepositoryUrl>true</PublishRepositoryUrl>
+        <EmbedUntrackedSources>true</EmbedUntrackedSources>
+        <DebugType>embedded</DebugType>
+        <IncludeSymbols>true</IncludeSymbols>
+        <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+
+        <Description>
+            Zero-dependency resilience library for .NET 7/8/9. Provides Retry (with jitter/backoff),
+            Circuit Breaker (sliding-window state machine), Timeout (optimistic + pessimistic),
+            Fallback, and Bulkhead policies via a fluent builder API.
+            Works standalone or as a Vali-Mediator pipeline behaviour via IResilient.
+            No Polly or other external dependencies required.
+        </Description>
+
+        <PackageReleaseNotes>
+            v1.0.0 — Initial release:
+            - RetryPolicy: Fixed / Linear / Exponential / ExponentialWithJitter / Custom backoff, per-exception and per-ErrorType conditions, OnRetry callback.
+            - CircuitBreakerPolicy: sliding-window failure tracking, Closed → Open → HalfOpen state machine, configurable thresholds, callbacks.
+            - TimeoutPolicy: Optimistic (CancellationToken) and Pessimistic (Task.WhenAny) strategies.
+            - FallbackPolicy: typed fallback value or factory, conditional activation, OnFallback callback.
+            - BulkheadPolicy: semaphore-based concurrency limiter with optional queue, OnRejected callback.
+            - ResiliencePolicy: composable fluent builder combining all policies.
+            - ResiliencePresets: ForExternalApi, ForDatabase, ForCritical, NoResilience.
+            - Vali-Mediator integration: IResilient interface + ResilienceBehavior pipeline.
+            - CircuitBreakerRegistry: keyed singleton registry for sharing circuit state across calls.
+        </PackageReleaseNotes>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <None Include="logo.png" Condition="Exists('logo.png')">
+            <Pack>True</Pack>
+            <PackagePath></PackagePath>
+        </None>
+        <None Include="README.md" Condition="Exists('README.md')">
+            <Pack>True</Pack>
+            <PackagePath>\</PackagePath>
+        </None>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Vali-Mediator\Vali-Mediator.csproj" />
+        <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="7.0.0" />
+        <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All" />
+    </ItemGroup>
+
+</Project>

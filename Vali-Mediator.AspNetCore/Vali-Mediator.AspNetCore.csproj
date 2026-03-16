@@ -1,0 +1,59 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>net7.0;net8.0;net9.0</TargetFrameworks>
+    <RootNamespace>Vali_Mediator.AspNetCore</RootNamespace>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+
+    <PackageId>Vali-Mediator.AspNetCore</PackageId>
+    <Version>1.0.0</Version>
+    <Title>Vali-Mediator.AspNetCore</Title>
+    <Product>Vali-Mediator.AspNetCore</Product>
+    <Authors>Felipe Rafael Montenegro Morriberon</Authors>
+    <Copyright>Copyright © 2025 - FM. All rights reserved.</Copyright>
+
+    <RepositoryUrl>https://github.com/UBF21/Vali-Mediator</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageProjectUrl>https://vali-mediator-docs.netlify.app/docs/aspnetcore/overview</PackageProjectUrl>
+
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+    <PackageRequireLicenseAcceptance>true</PackageRequireLicenseAcceptance>
+
+    <PackageTags>mediator;result;aspnetcore;http;minimal-api;mvc;dotnet;vali;cqrs</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <DebugType>embedded</DebugType>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+
+    <Description>
+      ASP.NET Core integration for Vali-Mediator. Maps Result&lt;T&gt; and Result to HTTP responses:
+      Ok→200, Validation→400, NotFound→404, Conflict→409, Unauthorized→401, Forbidden→403, Failure→500.
+      Provides ToActionResult() for MVC controllers and ToHttpResult() for Minimal API.
+    </Description>
+
+    <PackageReleaseNotes>
+      v1.0.0 — Initial release.
+      - ResultExtensions: ToActionResult() maps Result&lt;T&gt; to IActionResult.
+      - ResultExtensions: ToHttpResult() maps Result&lt;T&gt; to IResult (Minimal API).
+      - ResultExtensions: ToActionResult() and ToHttpResult() for non-generic Result.
+      - ErrorType mapping: None/Ok→200, Validation→400, NotFound→404, Conflict→409, Unauthorized→401, Forbidden→403, Failure→500.
+      - Structured validation errors (ValidationErrors dictionary) returned as ValidationProblemDetails.
+    </PackageReleaseNotes>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="README.md">
+      <Pack>True</Pack>
+      <PackagePath>\</PackagePath>
+    </None>
+  </ItemGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="..\Vali-Mediator\Vali-Mediator.csproj" />
+    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All" />
+  </ItemGroup>
+</Project>

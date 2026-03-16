@@ -1,0 +1,79 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFrameworks>net7.0;net8.0;net9.0</TargetFrameworks>
+        <RootNamespace>Vali_Mediator_Caching</RootNamespace>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+
+        <!-- Package identity -->
+        <PackageId>Vali-Mediator.Caching</PackageId>
+        <Version>1.0.0</Version>
+        <Title>Vali-Mediator.Caching</Title>
+        <Product>Vali-Mediator.Caching</Product>
+        <Authors>Felipe Rafael Montenegro Morriberon</Authors>
+        <Copyright>Copyright © 2025 - FM. All rights reserved.</Copyright>
+
+        <!-- Repository -->
+        <RepositoryUrl>https://github.com/UBF21/Vali-Mediator</RepositoryUrl>
+        <RepositoryType>git</RepositoryType>
+        <PackageProjectUrl>https://vali-mediator-docs.netlify.app/docs/caching/overview</PackageProjectUrl>
+
+        <!-- License -->
+        <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+        <PackageRequireLicenseAcceptance>true</PackageRequireLicenseAcceptance>
+
+        <!-- Discoverability -->
+        <PackageTags>caching;cache;mediator;cqrs;pipeline;dotnet;di;clean-architecture;vali;in-memory</PackageTags>
+        <PackageIcon>logo.png</PackageIcon>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+
+        <!-- Source Link / Symbols -->
+        <PublishRepositoryUrl>true</PublishRepositoryUrl>
+        <EmbedUntrackedSources>true</EmbedUntrackedSources>
+        <DebugType>embedded</DebugType>
+        <IncludeSymbols>true</IncludeSymbols>
+        <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+
+        <Description>
+            Caching integration library for Vali-Mediator (.NET 7/8/9).
+            Provides a pluggable ICacheStore abstraction, an in-memory implementation with expiry
+            and group-based invalidation, and two pipeline behaviors: CachingBehavior (read-through /
+            write-through) and CacheInvalidationBehavior.
+            Zero external dependencies beyond Microsoft.Extensions.DependencyInjection.Abstractions
+            and Vali-Mediator.
+        </Description>
+
+        <PackageReleaseNotes>
+            v1.0.0 — Initial release:
+            - ICacheable: per-request cache key, absolute/sliding expiry, group, bypass flag, and CacheOrder.
+            - IInvalidatesCache: explicit key and group invalidation contract for commands.
+            - CacheOrder enum: ReadThenWrite (default), WriteOnly, ReadOnly.
+            - ICacheStore abstraction: TryGetAsync, SetAsync, RemoveAsync, RemoveByGroupAsync.
+            - InMemoryCacheStore: ConcurrentDictionary-backed, lazy expiry checking, group tracking.
+            - InMemoryCacheOptions: MaxEntries and CleanupInterval configuration.
+            - CachingBehavior: open-generic IPipelineBehavior that honors CacheOrder and BypassCache.
+            - CacheInvalidationBehavior: evicts keys and groups after a successful command.
+            - AddCachingBehavior() extension on ValiMediatorConfiguration.
+            - AddInMemoryCacheStore() / AddCacheStore&lt;TStore&gt;() extensions on IServiceCollection.
+        </PackageReleaseNotes>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <None Include="logo.png" Condition="Exists('logo.png')">
+            <Pack>True</Pack>
+            <PackagePath></PackagePath>
+        </None>
+        <None Include="README.md" Condition="Exists('README.md')">
+            <Pack>True</Pack>
+            <PackagePath>\</PackagePath>
+        </None>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Vali-Mediator\Vali-Mediator.csproj" />
+        <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="7.0.0" />
+        <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All" />
+    </ItemGroup>
+
+</Project>
