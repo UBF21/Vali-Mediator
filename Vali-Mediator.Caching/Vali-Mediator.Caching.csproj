@@ -9,7 +9,7 @@
 
         <!-- Package identity -->
         <PackageId>Vali-Mediator.Caching</PackageId>
-        <Version>1.0.1</Version>
+        <Version>1.1.0</Version>
         <Title>Vali-Mediator.Caching</Title>
         <Product>Vali-Mediator.Caching</Product>
         <Authors>Felipe Rafael Montenegro Morriberon</Authors>
@@ -46,6 +46,8 @@
         </Description>
 
         <PackageReleaseNotes>
+            v1.1.0 — Package structure: now uses Vali-Mediator as NuGet dependency instead of local ProjectReference.
+
             v1.0.1 — Documentation: enabled XML documentation file for full IntelliSense support.
 
             v1.0.0 — Initial release:

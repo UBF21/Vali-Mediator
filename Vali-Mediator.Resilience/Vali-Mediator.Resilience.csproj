@@ -9,7 +9,7 @@
 
         <!-- Package identity -->
         <PackageId>Vali-Mediator.Resilience</PackageId>
-        <Version>1.0.1</Version>
+        <Version>1.1.0</Version>
         <Title>Vali-Mediator.Resilience</Title>
         <Product>Vali-Mediator.Resilience</Product>
         <Authors>Felipe Rafael Montenegro Morriberon</Authors>
@@ -45,6 +45,8 @@
         </Description>
 
         <PackageReleaseNotes>
+            v1.1.0 — Package structure: now uses Vali-Mediator as NuGet dependency instead of local ProjectReference.
+
             v1.0.1 — Documentation: enabled XML documentation file for full IntelliSense support.
 
             v1.0.0 — Initial release:
