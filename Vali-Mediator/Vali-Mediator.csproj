@@ -5,10 +5,11 @@
         <RootNamespace>Vali_Mediator</RootNamespace>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
 
         <!-- Package identity -->
         <PackageId>Vali-Mediator</PackageId>
-        <Version>2.0.0</Version>
+        <Version>2.0.1</Version>
         <Title>Vali-Mediator</Title>
         <Product>Vali-Mediator</Product>
         <Authors>Felipe Rafael Montenegro Morriberon</Authors>
@@ -44,6 +45,11 @@
         </Description>
 
         <PackageReleaseNotes>
+            v2.0.1 — Documentation:
+            - Enabled XML documentation file generation (GenerateDocumentationFile) — full IntelliSense for all public APIs.
+            - Added missing XML doc comments on Unit, Result, and ValiMediator members.
+            - Fixed ambiguous and unresolved cref references in doc comments.
+
             v2.0.0 — Major release:
 
             New features:

@@ -5,10 +5,11 @@
         <RootNamespace>Vali_Mediator_Observability</RootNamespace>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
 
         <!-- Package identity -->
         <PackageId>Vali-Mediator.Observability</PackageId>
-        <Version>1.0.0</Version>
+        <Version>1.0.1</Version>
         <Title>Vali-Mediator.Observability</Title>
         <Product>Vali-Mediator.Observability</Product>
         <Authors>Felipe Rafael Montenegro Morriberon</Authors>
@@ -45,6 +46,8 @@
         </Description>
 
         <PackageReleaseNotes>
+            v1.0.1 — Documentation: enabled XML documentation file for full IntelliSense support.
+
             v1.0.0 — Initial release:
             - ActivitySource "Vali-Mediator" (OpenTelemetry-compatible, no otel dependency).
             - IRequestObserver lifecycle hooks: OnStarted, OnCompleted, OnFailed.
@@ -69,7 +72,7 @@
     </ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\Vali-Mediator\Vali-Mediator.csproj" />
+        <PackageReference Include="Vali-Mediator" Version="2.0.0" />
         <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="7.0.0" />
         <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All" />
     </ItemGroup>
