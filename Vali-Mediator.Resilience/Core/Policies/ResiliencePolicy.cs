@@ -98,14 +98,32 @@ public sealed class ResiliencePolicy
     }
 
     // -----------------------------------------------------------------------
+    // Internal (used by ResilienceBehavior to seed request into context)
+    // -----------------------------------------------------------------------
+
+    internal async Task<T> ExecuteAsync<T>(
+        Func<CancellationToken, Task<T>> operation,
+        Dictionary<string, object?>? initialProperties,
+        FallbackOptions<T>? fallback = null,
+        CancellationToken cancellationToken = default)
+    {
+        var context = BuildContext(initialProperties);
+        return await _pipeline.ExecuteAsync(operation, fallback, context, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    // -----------------------------------------------------------------------
     // Private helpers
     // -----------------------------------------------------------------------
 
-    private ResilienceContext BuildContext()
+    private ResilienceContext BuildContext(Dictionary<string, object?>? initialProperties = null)
     {
         var ctx = new ResilienceContext();
         ctx.OperationKey = _operationKey;
         ctx.Reset();
+        if (initialProperties != null)
+            foreach (var kv in initialProperties)
+                ctx.Properties[kv.Key] = kv.Value;
         return ctx;
     }
 }

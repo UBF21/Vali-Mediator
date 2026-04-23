@@ -1,12 +1,17 @@
 {
   "version": 2,
-  "dgSpecHash": "NoUzyoUmp3w=",
+  "dgSpecHash": "x3C4y6p7pXc=",
   "success": true,
-  "projectFilePath": "/Users/isw21/RiderProjects/Vali-Mediator/Vali-Mediator/Vali-Mediator.csproj",
+  "projectFilePath": "/Users/feliperafaelmontenegro/RiderProjects/Vali-Mediator/Vali-Mediator/Vali-Mediator.csproj",
   "expectedPackageFiles": [
-    "/Users/isw21/.nuget/packages/microsoft.extensions.dependencyinjection.abstractions/7.0.0/microsoft.extensions.dependencyinjection.abstractions.7.0.0.nupkg.sha512",
-    "/Users/isw21/.nuget/packages/microsoft.netcore.app.ref/8.0.14/microsoft.netcore.app.ref.8.0.14.nupkg.sha512",
-    "/Users/isw21/.nuget/packages/microsoft.aspnetcore.app.ref/8.0.14/microsoft.aspnetcore.app.ref.8.0.14.nupkg.sha512"
+    "/Users/feliperafaelmontenegro/.nuget/packages/microsoft.build.tasks.git/8.0.0/microsoft.build.tasks.git.8.0.0.nupkg.sha512",
+    "/Users/feliperafaelmontenegro/.nuget/packages/microsoft.extensions.dependencyinjection.abstractions/7.0.0/microsoft.extensions.dependencyinjection.abstractions.7.0.0.nupkg.sha512",
+    "/Users/feliperafaelmontenegro/.nuget/packages/microsoft.sourcelink.common/8.0.0/microsoft.sourcelink.common.8.0.0.nupkg.sha512",
+    "/Users/feliperafaelmontenegro/.nuget/packages/microsoft.sourcelink.github/8.0.0/microsoft.sourcelink.github.8.0.0.nupkg.sha512",
+    "/Users/feliperafaelmontenegro/.nuget/packages/microsoft.netcore.app.ref/7.0.20/microsoft.netcore.app.ref.7.0.20.nupkg.sha512",
+    "/Users/feliperafaelmontenegro/.nuget/packages/microsoft.aspnetcore.app.ref/7.0.20/microsoft.aspnetcore.app.ref.7.0.20.nupkg.sha512",
+    "/Users/feliperafaelmontenegro/.nuget/packages/microsoft.netcore.app.ref/8.0.25/microsoft.netcore.app.ref.8.0.25.nupkg.sha512",
+    "/Users/feliperafaelmontenegro/.nuget/packages/microsoft.aspnetcore.app.ref/8.0.25/microsoft.aspnetcore.app.ref.8.0.25.nupkg.sha512"
   ],
   "logs": []
 }

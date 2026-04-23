@@ -72,8 +72,12 @@ public readonly struct Result : IResult, IEquatable<Result>
         return this;
     }
 
+    /// <inheritdoc/>
     public bool Equals(Result other) => IsSuccess == other.IsSuccess && Error == other.Error && ErrorType == other.ErrorType;
+    /// <inheritdoc/>
     public override bool Equals(object? obj) => obj is Result r && Equals(r);
+    /// <inheritdoc/>
     public override int GetHashCode() => HashCode.Combine(IsSuccess, Error, ErrorType);
+    /// <inheritdoc/>
     public override string ToString() => IsSuccess ? "Ok()" : $"Fail({ErrorType}: {Error})";
 }

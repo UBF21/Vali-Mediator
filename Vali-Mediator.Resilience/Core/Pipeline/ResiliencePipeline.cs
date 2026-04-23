@@ -24,8 +24,8 @@ internal sealed class ResiliencePipeline
     // Per-instance semaphore for bulkhead (when not using DI)
     private SemaphoreSlim? _bulkheadSemaphore;
 
-    // Per-instance rate limiter state
     private readonly RateLimiterState? _rateLimiterState;
+    private readonly PartitionedRateLimiterState? _partitionedRateLimiterState;
 
     internal ResiliencePipeline(
         RetryOptions? retry,
@@ -54,7 +54,12 @@ internal sealed class ResiliencePipeline
         }
 
         if (_rateLimiterOptions != null)
-            _rateLimiterState = new RateLimiterState(_rateLimiterOptions);
+        {
+            if (_rateLimiterOptions.PartitionKeyResolver != null)
+                _partitionedRateLimiterState = new PartitionedRateLimiterState(_rateLimiterOptions);
+            else
+                _rateLimiterState = new RateLimiterState(_rateLimiterOptions);
+        }
     }
 
     // -----------------------------------------------------------------------
@@ -76,8 +81,9 @@ internal sealed class ResiliencePipeline
             : operation;
 
         // RateLimiter: reject fast before touching timeout/circuit breaker
-        Func<CancellationToken, Task<T>> rateLimited = _rateLimiterState != null && _rateLimiterOptions != null
-            ? ct => RateLimiterExecutor.ExecuteAsync(innerOp, _rateLimiterState, _rateLimiterOptions, context, ct)
+        bool hasRateLimiter = _rateLimiterOptions != null && (_rateLimiterState != null || _partitionedRateLimiterState != null);
+        Func<CancellationToken, Task<T>> rateLimited = hasRateLimiter
+            ? ct => RateLimiterExecutor.ExecuteAsync(innerOp, _rateLimiterState, _partitionedRateLimiterState, _rateLimiterOptions!, context, ct)
             : innerOp;
 
         // Outer: Fallback wraps everything
@@ -119,8 +125,9 @@ internal sealed class ResiliencePipeline
             ? ct => ChaosExecutor.ExecuteAsync(wrapped, _chaos, ct)
             : wrapped;
 
-        Func<CancellationToken, Task<object?>> rateLimited = _rateLimiterState != null && _rateLimiterOptions != null
-            ? ct => RateLimiterExecutor.ExecuteAsync(innerOp, _rateLimiterState, _rateLimiterOptions, context, ct)
+        bool hasRateLimiterVoid = _rateLimiterOptions != null && (_rateLimiterState != null || _partitionedRateLimiterState != null);
+        Func<CancellationToken, Task<object?>> rateLimited = hasRateLimiterVoid
+            ? ct => RateLimiterExecutor.ExecuteAsync(innerOp, _rateLimiterState, _partitionedRateLimiterState, _rateLimiterOptions!, context, ct)
             : innerOp;
 
         await ExecuteWithTimeoutCircuitBulkheadRetryAsync(rateLimited, context, cancellationToken)

@@ -154,39 +154,95 @@ builder.Services.AddValiMediator(config =>
 builder.Services.AddResilienceRegistry();
 ```
 
-### Declare policy on the request
+### Policy resolution order
+
+`ResilienceBehavior` resolves the policy for each request in this order:
+
+| Priority | Mechanism | Use when |
+|----------|-----------|----------|
+| 1 | `AddResiliencePolicy<T>` / `AddResiliencePolicyProvider<T,P>` | **Recommended** — policy lives outside the command |
+| 2 | `IResilient` on the command | Legacy / backward compat (**deprecated**) |
+| 3 | `AddGlobalResiliencePolicy` | Default for all requests without a specific policy |
+
+### Inline policy — no class needed
 
 ```csharp
-public class CallPaymentGatewayCommand : IRequest<Result<PaymentDto>>, IResilient
-{
-    public string OrderId { get; init; } = string.Empty;
-
-    // Evaluated once per dispatch; cache as static for best performance
-    private static readonly ResiliencePolicy _policy = ResiliencePolicy
-        .Create("payment-gateway")
-        .Retry(options =>
+// Program.cs
+services.AddResiliencePolicy<LoginCommand>(req =>
+    ResiliencePolicy.Create()
+        .RateLimiter(opts =>
         {
-            options.MaxRetries = 3;
-            options.BackoffType = BackoffType.ExponentialWithJitter;
-            options.InitialDelay = TimeSpan.FromMilliseconds(200);
-            options.MaxDelay = TimeSpan.FromSeconds(5);
-            options.RetryOnErrorTypes.Add(ErrorType.Failure);
+            opts.Algorithm = RateLimiterAlgorithm.SlidingWindow;
+            opts.PermitLimit = 5;
+            opts.Window = TimeSpan.FromMinutes(1);
+            opts.PartitionKeyResolver = r => ((LoginCommand)r).Email; // per user
         })
-        .CircuitBreaker(options =>
-        {
-            options.CircuitKey = "payment-gateway";
-            options.FailureThreshold = 5;
-            options.SamplingDuration = TimeSpan.FromSeconds(30);
-            options.BreakDuration = TimeSpan.FromSeconds(60);
-        })
-        .Timeout(TimeSpan.FromSeconds(10))
-        .Build();
-
-    public ResiliencePolicy Policy => _policy;
-}
+        .Build());
 ```
 
-The `ResilienceBehavior` intercepts the request in the Vali-Mediator pipeline and wraps handler execution in the declared policy — no code changes needed in the handler.
+### Class-based policy provider — for injected dependencies
+
+```csharp
+public class PlaceOrderPolicyProvider : IResiliencePolicyProvider<PlaceOrderCommand>
+{
+    private readonly ResilienceSettings _settings;
+
+    public PlaceOrderPolicyProvider(IOptions<ResilienceSettings> opts)
+        => _settings = opts.Value;
+
+    public ResiliencePolicy GetPolicy(PlaceOrderCommand request) =>
+        ResiliencePolicy.Create("place-order")
+            .Retry(opts =>
+            {
+                opts.MaxRetries = _settings.MaxRetries;
+                opts.BackoffType = BackoffType.ExponentialWithJitter;
+            })
+            .CircuitBreaker(opts =>
+            {
+                opts.CircuitKey = "payment-gateway";
+                opts.FailureThreshold = 5;
+                opts.BreakDuration = TimeSpan.FromSeconds(30);
+            })
+            .Timeout(TimeSpan.FromSeconds(10))
+            .Build();
+}
+
+// Registration
+services.AddResiliencePolicyProvider<PlaceOrderCommand, PlaceOrderPolicyProvider>();
+```
+
+### Global policy — applies to all commands without a specific policy
+
+```csharp
+services.AddGlobalResiliencePolicy(
+    ResiliencePolicy.Create()
+        .Retry(3)
+        .Timeout(TimeSpan.FromSeconds(30))
+        .Build());
+
+// Or vary by request type
+services.AddGlobalResiliencePolicy(req =>
+    ResiliencePolicy.Create()
+        .Retry(req is IQuery ? 3 : 1)
+        .Build());
+```
+
+### Partitioned rate limiting — per user/IP
+
+```csharp
+services.AddResiliencePolicy<ResetPasswordCommand>(req =>
+    ResiliencePolicy.Create()
+        .RateLimiter(opts =>
+        {
+            opts.Algorithm = RateLimiterAlgorithm.SlidingWindow;
+            opts.PermitLimit = 3;
+            opts.Window = TimeSpan.FromMinutes(15);
+            opts.PartitionKeyResolver = r => ((ResetPasswordCommand)r).Email;
+        })
+        .Build());
+```
+
+Each unique key gets its own independent counter. User A exhausting their limit does not affect User B.
 
 ---
 

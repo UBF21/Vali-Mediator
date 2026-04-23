@@ -12,13 +12,19 @@ using System.Reflection;
 
 [assembly: System.Reflection.AssemblyCompanyAttribute("Felipe Rafael Montenegro Morriberon")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
-[assembly: System.Reflection.AssemblyCopyrightAttribute("Copyright © 2025 - FM. All rights reserved.")]
-[assembly: System.Reflection.AssemblyDescriptionAttribute(@"Vali-Mediator is a lightweight .NET library for implementing the Mediator pattern with CQRS support. It simplifies request handling, pipeline behaviors, and event notifications through a fluent and extensible API. Designed for seamless integration with dependency injection, it enables developers to manage commands, queries, and notifications efficiently.")]
-[assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0")]
+[assembly: System.Reflection.AssemblyCopyrightAttribute("Copyright © 2025 Felipe Rafael Montenegro Morriberon. All rights reserved.")]
+[assembly: System.Reflection.AssemblyDescriptionAttribute(@"
+            Lightweight, zero-dependency mediator library for .NET 7/8/9.
+            Implements CQRS with requests, notifications (pub/sub), fire-and-forget commands, async streaming,
+            pipeline behaviors, pre/post processors, compensation (Saga pattern), and a built-in Result<T> type.
+            Designed for seamless DI integration — no external dependencies beyond
+            Microsoft.Extensions.DependencyInjection.Abstractions.
+        ")]
+[assembly: System.Reflection.AssemblyFileVersionAttribute("2.0.1.0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("2.0.1")]
 [assembly: System.Reflection.AssemblyProductAttribute("Vali-Mediator")]
 [assembly: System.Reflection.AssemblyTitleAttribute("Vali-Mediator")]
-[assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
+[assembly: System.Reflection.AssemblyVersionAttribute("2.0.1.0")]
 [assembly: System.Reflection.AssemblyMetadataAttribute("RepositoryUrl", "https://github.com/UBF21/Vali-Mediator")]
 
 // Generado por la clase WriteCodeFragment de MSBuild.

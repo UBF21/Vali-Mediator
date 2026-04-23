@@ -1,21 +1,21 @@
 {
   "format": 1,
   "restore": {
-    "/Users/isw21/RiderProjects/Vali-Mediator/Vali-Mediator/Vali-Mediator.csproj": {}
+    "/Users/feliperafaelmontenegro/RiderProjects/Vali-Mediator/Vali-Mediator/Vali-Mediator.csproj": {}
   },
   "projects": {
-    "/Users/isw21/RiderProjects/Vali-Mediator/Vali-Mediator/Vali-Mediator.csproj": {
-      "version": "1.0.0",
+    "/Users/feliperafaelmontenegro/RiderProjects/Vali-Mediator/Vali-Mediator/Vali-Mediator.csproj": {
+      "version": "2.0.1",
       "restore": {
-        "projectUniqueName": "/Users/isw21/RiderProjects/Vali-Mediator/Vali-Mediator/Vali-Mediator.csproj",
+        "projectUniqueName": "/Users/feliperafaelmontenegro/RiderProjects/Vali-Mediator/Vali-Mediator/Vali-Mediator.csproj",
         "projectName": "Vali-Mediator",
-        "projectPath": "/Users/isw21/RiderProjects/Vali-Mediator/Vali-Mediator/Vali-Mediator.csproj",
-        "packagesPath": "/Users/isw21/.nuget/packages/",
-        "outputPath": "/Users/isw21/RiderProjects/Vali-Mediator/Vali-Mediator/obj/",
+        "projectPath": "/Users/feliperafaelmontenegro/RiderProjects/Vali-Mediator/Vali-Mediator/Vali-Mediator.csproj",
+        "packagesPath": "/Users/feliperafaelmontenegro/.nuget/packages/",
+        "outputPath": "/Users/feliperafaelmontenegro/RiderProjects/Vali-Mediator/Vali-Mediator/obj/",
         "projectStyle": "PackageReference",
         "crossTargeting": true,
         "configFilePaths": [
-          "/Users/isw21/.nuget/NuGet/NuGet.Config"
+          "/Users/feliperafaelmontenegro/.nuget/NuGet/NuGet.Config"
         ],
         "originalTargetFrameworks": [
           "net7.0",
@@ -23,6 +23,7 @@
           "net9.0"
         ],
         "sources": {
+          "/Users/feliperafaelmontenegro/RiderProjects/Vali-Tempo/nupkgs": {},
           "https://api.nuget.org/v3/index.json": {}
         },
         "frameworks": {
@@ -49,7 +50,7 @@
           "auditLevel": "low",
           "auditMode": "direct"
         },
-        "SdkAnalysisLevel": "9.0.200"
+        "SdkAnalysisLevel": "9.0.300"
       },
       "frameworks": {
         "net7.0": {
@@ -58,32 +59,11 @@
             "Microsoft.Extensions.DependencyInjection.Abstractions": {
               "target": "Package",
               "version": "[7.0.0, )"
-            }
-          },
-          "imports": [
-            "net461",
-            "net462",
-            "net47",
-            "net471",
-            "net472",
-            "net48",
-            "net481"
-          ],
-          "assetTargetFallback": true,
-          "warn": true,
-          "frameworkReferences": {
-            "Microsoft.NETCore.App": {
-              "privateAssets": "all"
-            }
-          },
-          "runtimeIdentifierGraphPath": "/usr/local/share/dotnet/sdk/9.0.201/RuntimeIdentifierGraph.json"
-        },
-        "net8.0": {
-          "targetAlias": "net8.0",
-          "dependencies": {
-            "Microsoft.Extensions.DependencyInjection.Abstractions": {
+            },
+            "Microsoft.SourceLink.GitHub": {
+              "suppressParent": "All",
               "target": "Package",
-              "version": "[7.0.0, )"
+              "version": "[8.0.0, )"
             }
           },
           "imports": [
@@ -100,11 +80,11 @@
           "downloadDependencies": [
             {
               "name": "Microsoft.AspNetCore.App.Ref",
-              "version": "[8.0.14, 8.0.14]"
+              "version": "[7.0.20, 7.0.20]"
             },
             {
               "name": "Microsoft.NETCore.App.Ref",
-              "version": "[8.0.14, 8.0.14]"
+              "version": "[7.0.20, 7.0.20]"
             }
           ],
           "frameworkReferences": {
@@ -112,7 +92,48 @@
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "/usr/local/share/dotnet/sdk/9.0.201/PortableRuntimeIdentifierGraph.json"
+          "runtimeIdentifierGraphPath": "/usr/local/share/dotnet/sdk/9.0.312/RuntimeIdentifierGraph.json"
+        },
+        "net8.0": {
+          "targetAlias": "net8.0",
+          "dependencies": {
+            "Microsoft.Extensions.DependencyInjection.Abstractions": {
+              "target": "Package",
+              "version": "[7.0.0, )"
+            },
+            "Microsoft.SourceLink.GitHub": {
+              "suppressParent": "All",
+              "target": "Package",
+              "version": "[8.0.0, )"
+            }
+          },
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48",
+            "net481"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "downloadDependencies": [
+            {
+              "name": "Microsoft.AspNetCore.App.Ref",
+              "version": "[8.0.25, 8.0.25]"
+            },
+            {
+              "name": "Microsoft.NETCore.App.Ref",
+              "version": "[8.0.25, 8.0.25]"
+            }
+          ],
+          "frameworkReferences": {
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "/usr/local/share/dotnet/sdk/9.0.312/PortableRuntimeIdentifierGraph.json"
         },
         "net9.0": {
           "targetAlias": "net9.0",
@@ -120,6 +141,11 @@
             "Microsoft.Extensions.DependencyInjection.Abstractions": {
               "target": "Package",
               "version": "[7.0.0, )"
+            },
+            "Microsoft.SourceLink.GitHub": {
+              "suppressParent": "All",
+              "target": "Package",
+              "version": "[8.0.0, )"
             }
           },
           "imports": [
@@ -138,7 +164,7 @@
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "/usr/local/share/dotnet/sdk/9.0.201/PortableRuntimeIdentifierGraph.json"
+          "runtimeIdentifierGraphPath": "/usr/local/share/dotnet/sdk/9.0.312/PortableRuntimeIdentifierGraph.json"
         }
       }
     }

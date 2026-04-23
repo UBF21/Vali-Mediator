@@ -116,12 +116,29 @@ internal static class RateLimiterExecutor
 {
     internal static async Task<T> ExecuteAsync<T>(
         Func<CancellationToken, Task<T>> operation,
-        RateLimiterState state,
+        RateLimiterState? globalState,
+        PartitionedRateLimiterState? partitionedState,
         RateLimiterOptions options,
         ResilienceContext context,
         CancellationToken cancellationToken)
     {
-        bool permitted = await state.TryAcquireAsync(cancellationToken).ConfigureAwait(false);
+        RateLimiterState stateToUse;
+
+        if (partitionedState != null)
+        {
+            if (!context.Properties.TryGetValue("Vali.Request", out var req) || req == null)
+                throw new InvalidOperationException(
+                    "RateLimiterOptions.PartitionKeyResolver is set but no request was found in ResilienceContext. " +
+                    "Ensure the request is dispatched through ResilienceBehavior.");
+
+            stateToUse = partitionedState.GetOrCreate(options.PartitionKeyResolver!(req));
+        }
+        else
+        {
+            stateToUse = globalState!;
+        }
+
+        bool permitted = await stateToUse.TryAcquireAsync(cancellationToken).ConfigureAwait(false);
 
         if (!permitted)
         {

@@ -10,3 +10,16 @@
 /Users/isw21/RiderProjects/Vali-Mediator/Vali-Mediator/obj/Release/net9.0/refint/Vali-Mediator.dll
 /Users/isw21/RiderProjects/Vali-Mediator/Vali-Mediator/obj/Release/net9.0/Vali-Mediator.pdb
 /Users/isw21/RiderProjects/Vali-Mediator/Vali-Mediator/obj/Release/net9.0/ref/Vali-Mediator.dll
+/Users/feliperafaelmontenegro/RiderProjects/Vali-Mediator/Vali-Mediator/bin/Release/net9.0/Vali-Mediator.deps.json
+/Users/feliperafaelmontenegro/RiderProjects/Vali-Mediator/Vali-Mediator/bin/Release/net9.0/Vali-Mediator.dll
+/Users/feliperafaelmontenegro/RiderProjects/Vali-Mediator/Vali-Mediator/obj/Release/net9.0/Vali-Mediator.csproj.AssemblyReference.cache
+/Users/feliperafaelmontenegro/RiderProjects/Vali-Mediator/Vali-Mediator/obj/Release/net9.0/Vali-Mediator.GeneratedMSBuildEditorConfig.editorconfig
+/Users/feliperafaelmontenegro/RiderProjects/Vali-Mediator/Vali-Mediator/obj/Release/net9.0/Vali-Mediator.AssemblyInfoInputs.cache
+/Users/feliperafaelmontenegro/RiderProjects/Vali-Mediator/Vali-Mediator/obj/Release/net9.0/Vali-Mediator.AssemblyInfo.cs
+/Users/feliperafaelmontenegro/RiderProjects/Vali-Mediator/Vali-Mediator/obj/Release/net9.0/Vali-Mediator.csproj.CoreCompileInputs.cache
+/Users/feliperafaelmontenegro/RiderProjects/Vali-Mediator/Vali-Mediator/obj/Release/net9.0/Vali-Mediator.sourcelink.json
+/Users/feliperafaelmontenegro/RiderProjects/Vali-Mediator/Vali-Mediator/obj/Release/net9.0/Vali-Mediator.dll
+/Users/feliperafaelmontenegro/RiderProjects/Vali-Mediator/Vali-Mediator/obj/Release/net9.0/refint/Vali-Mediator.dll
+/Users/feliperafaelmontenegro/RiderProjects/Vali-Mediator/Vali-Mediator/obj/Release/net9.0/ref/Vali-Mediator.dll
+/Users/feliperafaelmontenegro/RiderProjects/Vali-Mediator/Vali-Mediator/bin/Release/net9.0/Vali-Mediator.xml
+/Users/feliperafaelmontenegro/RiderProjects/Vali-Mediator/Vali-Mediator/obj/Release/net9.0/Vali-Mediator.xml

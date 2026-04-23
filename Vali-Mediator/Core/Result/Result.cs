@@ -2,7 +2,7 @@ namespace Vali_Mediator.Core.Result;
 
 /// <summary>
 /// Represents the outcome of an operation that can either succeed with a value
-/// or fail with an error message and type. Use <see cref="Ok"/> and <see cref="Fail"/>
+/// or fail with an error message and type. Use <see cref="Ok"/> and <see cref="Fail(string, ErrorType)"/>
 /// factory methods to construct instances.
 /// </summary>
 /// <typeparam name="T">The type of the success value.</typeparam>

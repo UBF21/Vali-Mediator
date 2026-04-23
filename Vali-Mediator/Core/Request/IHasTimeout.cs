@@ -7,7 +7,7 @@ namespace Vali_Mediator.Core.Request;
 /// </summary>
 /// <remarks>
 /// The behavior combines the declared timeout with the caller's
-/// <see cref="CancellationToken"/> via <see cref="CancellationTokenSource.CreateLinkedTokenSource"/>,
+/// <see cref="CancellationToken"/> via <see cref="CancellationTokenSource.CreateLinkedTokenSource(CancellationToken)"/>,
 /// so whichever fires first wins.
 /// </remarks>
 public interface IHasTimeout

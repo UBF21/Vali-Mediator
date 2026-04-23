@@ -42,4 +42,15 @@ public sealed class RateLimiterOptions
 
     /// <summary>Called when a request is rejected due to rate limiting.</summary>
     public Func<ResilienceContext, Task>? OnRejected { get; set; }
+
+    /// <summary>
+    /// When set, enables per-partition rate limiting (e.g. per user ID or IP).
+    /// Receives the raw request object and returns the partition key string.
+    /// Each unique key gets its own independent counter — User A's limit does not affect User B.
+    /// When null (default), a single global counter is shared across all callers.
+    /// </summary>
+    /// <example>
+    /// opts.PartitionKeyResolver = req => ((LoginCommand)req).UserId;
+    /// </example>
+    public Func<object, string>? PartitionKeyResolver { get; set; }
 }

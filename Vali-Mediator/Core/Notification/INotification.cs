@@ -8,7 +8,7 @@ namespace Vali_Mediator.Core.Notification;
 /// </summary>
 /// <remarks>
 /// This interface inherits from <see cref="IDispatch"/> and is used to represent events or notifications that are dispatched 
-/// via the <see cref="IValiMediator.Publish{TNotification}"/> method. Implementations of this interface can be processed by 
+/// via the <see cref="IValiMediator.Publish{TNotification}(TNotification, CancellationToken)"/> method. Implementations of this interface can be processed by
 /// multiple <see cref="INotificationHandler{TNotification}"/> instances, enabling a publish-subscribe pattern.
 /// </remarks>
 public interface INotification : IDispatch

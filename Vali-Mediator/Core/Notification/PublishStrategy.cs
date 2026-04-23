@@ -2,7 +2,7 @@ namespace Vali_Mediator.Core.Notification;
 
 /// <summary>
 /// Controls how notification handlers are invoked when publishing via
-/// <see cref="Mediator.IValiMediator.Publish{TNotification}(TNotification, PublishStrategy, System.Threading.CancellationToken)"/>.
+/// <see cref="Vali_Mediator.Core.General.Mediator.IValiMediator"/>.
 /// </summary>
 public enum PublishStrategy
 {
@@ -14,7 +14,7 @@ public enum PublishStrategy
     Sequential = 0,
 
     /// <summary>
-    /// All handlers are invoked concurrently via <see cref="System.Threading.Tasks.Task.WhenAll"/>.
+    /// All handlers are invoked concurrently via <see cref="System.Threading.Tasks.Task.WhenAll(System.Collections.Generic.IEnumerable{System.Threading.Tasks.Task})"/>.
     /// All handlers run regardless of individual failures; all exceptions are
     /// surfaced together as an <see cref="System.AggregateException"/>.
     /// </summary>

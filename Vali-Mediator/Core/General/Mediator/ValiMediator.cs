@@ -18,6 +18,7 @@ public class ValiMediator : IValiMediator
 {
     private readonly IServiceProvider _serviceProvider;
 
+    /// <summary>Initializes a new instance using the application's <see cref="IServiceProvider"/>.</summary>
     public ValiMediator(IServiceProvider serviceProvider)
     {
         _serviceProvider = serviceProvider;

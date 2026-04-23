@@ -4,7 +4,7 @@ namespace Vali_Mediator.Core.FireAndForget;
 
 /// <summary>
 /// Defines a marker interface for fire-and-forget commands that perform actions without returning a response.
-/// This interface inherits from <see cref="IDispatch"/> and is used to represent operations dispatched via the <see cref="IMediator"/>.
+/// This interface inherits from <see cref="IDispatch"/> and is used to represent operations dispatched via the <see cref="General.Mediator.IValiMediator"/>.
 /// </summary>
 /// <remarks>
 /// Implementations of this interface are typically handled by an <see cref="IFireAndForgetHandler{TRequest}"/> and are executed asynchronously

@@ -8,7 +8,7 @@ namespace Vali_Mediator.Core.Notification;
 /// </summary>
 /// <typeparam name="TNotification">The type of the notification to handle. Must implement <see cref="INotification"/>.</typeparam>
 /// <remarks>
-/// Implementations are invoked via <see cref="IValiMediator.Publish{TNotification}"/> in descending
+/// Implementations are invoked via <see cref="IValiMediator.Publish{TNotification}(TNotification, CancellationToken)"/> in descending
 /// <see cref="Priority"/> order. Handlers with the same priority execute in registration order.
 /// </remarks>
 public interface INotificationHandler<in TNotification>

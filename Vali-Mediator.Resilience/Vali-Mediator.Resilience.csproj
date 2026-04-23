@@ -9,7 +9,7 @@
 
         <!-- Package identity -->
         <PackageId>Vali-Mediator.Resilience</PackageId>
-        <Version>1.1.0</Version>
+        <Version>1.2.2</Version>
         <Title>Vali-Mediator.Resilience</Title>
         <Product>Vali-Mediator.Resilience</Product>
         <Authors>Felipe Rafael Montenegro Morriberon</Authors>
@@ -25,7 +25,7 @@
         <PackageRequireLicenseAcceptance>true</PackageRequireLicenseAcceptance>
 
         <!-- Discoverability -->
-        <PackageTags>resilience;retry;circuit-breaker;timeout;fallback;bulkhead;mediator;cqrs;dotnet;vali</PackageTags>
+        <PackageTags>resilience;retry;circuit-breaker;timeout;fallback;bulkhead;rate-limiter;hedge;chaos;mediator;cqrs;dotnet;vali</PackageTags>
         <PackageIcon>logo.png</PackageIcon>
         <PackageReadmeFile>README.md</PackageReadmeFile>
 
@@ -39,12 +39,30 @@
         <Description>
             Zero-dependency resilience library for .NET 7/8/9. Provides Retry (with jitter/backoff),
             Circuit Breaker (sliding-window state machine), Timeout (optimistic + pessimistic),
-            Fallback, and Bulkhead policies via a fluent builder API.
-            Works standalone or as a Vali-Mediator pipeline behaviour via IResilient.
-            No Polly or other external dependencies required.
+            Fallback, Bulkhead, Rate Limiter (partitioned per-user/IP), Hedge, and Chaos policies via a fluent builder API.
+            Attach policies to Vali-Mediator requests via IResiliencePolicyProvider&lt;T&gt; (no class needed),
+            with global fallback policy support. No Polly or other external dependencies required.
         </Description>
 
         <PackageReleaseNotes>
+            v1.2.2 — Bug fix: ResilienceBehavior now caches the resolved ResiliencePolicy per request type using a
+            static field (one cache slot per TRequest+TResponse combination). This covers both AddResiliencePolicy&lt;T&gt;
+            lambdas and class-based IResiliencePolicyProvider&lt;T&gt; providers. Stateful policies (Circuit Breaker,
+            Rate Limiter, Bulkhead, Hedge) now correctly preserve their state across all requests of the same type,
+            regardless of behavior lifetime or provider implementation.
+
+            v1.2.1 — Bug fix: DelegateResiliencePolicyProvider now caches the built ResiliencePolicy after the first request,
+            matching the behavior of a static provider. Previously the lambda was invoked on every call, causing
+            stateful policies (Circuit Breaker, Rate Limiter, Bulkhead, Hedge) to lose their state between requests.
+
+            v1.2.0 — Policy providers &amp; partitioned rate limiting:
+            - IResiliencePolicyProvider&lt;TRequest&gt;: declare policies in a separate class, keeping commands clean.
+            - services.AddResiliencePolicy&lt;T&gt;(lambda): inline registration without a class.
+            - services.AddResiliencePolicyProvider&lt;T,TProvider&gt;(): class-based registration for DI-dependent providers.
+            - IGlobalResiliencePolicyProvider / services.AddGlobalResiliencePolicy(): fallback policy for all requests.
+            - RateLimiterOptions.PartitionKeyResolver: per-user/IP rate limiting via a key selector func.
+            - IResilient marked [Obsolete] — use AddResiliencePolicy&lt;T&gt;() instead.
+
             v1.1.0 — Package structure: now uses Vali-Mediator as NuGet dependency instead of local ProjectReference.
 
             v1.0.1 — Documentation: enabled XML documentation file for full IntelliSense support.
