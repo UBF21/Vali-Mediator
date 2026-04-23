@@ -10,6 +10,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
+## Vali-Mediator.Resilience v1.2.3
+
+Released on 2026-04-22
+
+### Added
+
+- **`RegisterResiliencePoliciesFromAssemblyContaining<T>()`** — auto-discovers and registers all `IResiliencePolicyProvider<TRequest>` implementations from the specified assembly. Eliminates manual `AddResiliencePolicyProvider<T, P>()` calls and maintains consistency with handler discovery pattern.
+- **`RegisterResiliencePoliciesFromAssembly(assembly, lifetime)`** — explicit assembly-based variant of the above.
+
+### Changed
+
+- Policy providers are now discovered and registered automatically via assembly scan, just like handlers. Manual registration is no longer needed for most cases.
+
+---
+
 ## Vali-Mediator.Resilience v1.2.2
 
 Released on 2026-04-20
