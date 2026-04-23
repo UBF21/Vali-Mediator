@@ -9,7 +9,7 @@
 
         <!-- Package identity -->
         <PackageId>Vali-Mediator.Resilience</PackageId>
-        <Version>1.2.2</Version>
+        <Version>1.2.3</Version>
         <Title>Vali-Mediator.Resilience</Title>
         <Product>Vali-Mediator.Resilience</Product>
         <Authors>Felipe Rafael Montenegro Morriberon</Authors>
@@ -45,6 +45,11 @@
         </Description>
 
         <PackageReleaseNotes>
+            v1.2.3 — Auto-discovery for IResiliencePolicyProvider&lt;T&gt;:
+            - RegisterResiliencePoliciesFromAssemblyContaining&lt;T&gt;(): auto-discovers and registers all policy providers.
+            - RegisterResiliencePoliciesFromAssembly(assembly, lifetime): explicit assembly variant.
+            Eliminates manual AddResiliencePolicyProvider&lt;T,P&gt;() calls for each provider class.
+
             v1.2.2 — Bug fix: ResilienceBehavior now caches the resolved ResiliencePolicy per request type using a
             static field (one cache slot per TRequest+TResponse combination). This covers both AddResiliencePolicy&lt;T&gt;
             lambdas and class-based IResiliencePolicyProvider&lt;T&gt; providers. Stateful policies (Circuit Breaker,
