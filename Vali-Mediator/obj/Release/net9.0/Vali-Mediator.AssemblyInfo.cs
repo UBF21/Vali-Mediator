@@ -21,7 +21,7 @@ using System.Reflection;
             Microsoft.Extensions.DependencyInjection.Abstractions.
         ")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("2.0.1.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("2.0.1+515d9fafa9642298e281a3f3b8c88ea48ebbe759")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("2.0.1+9969e6e08fc0dfa9530c15e7c6b37fdb9c887a6b")]
 [assembly: System.Reflection.AssemblyProductAttribute("Vali-Mediator")]
 [assembly: System.Reflection.AssemblyTitleAttribute("Vali-Mediator")]
 [assembly: System.Reflection.AssemblyVersionAttribute("2.0.1.0")]

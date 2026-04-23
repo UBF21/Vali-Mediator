@@ -1,3 +1,4 @@
+using System.Reflection;
 using Microsoft.Extensions.DependencyInjection;
 using Vali_Mediator.Core.General.Extension;
 using Vali_Mediator_Resilience.Core.Registry;
@@ -135,5 +136,86 @@ public static class ValiMediatorResilienceExtension
     {
         services.AddSingleton<ICircuitBreakerRegistry, CircuitBreakerRegistry>();
         return services;
+    }
+
+    /// <summary>
+    /// Auto-discovers and registers all <see cref="IResiliencePolicyProvider{TRequest}"/> implementations
+    /// from the assembly containing <typeparamref name="T"/>.
+    /// </summary>
+    /// <remarks>
+    /// Call this after <c>AddValiMediator</c>:
+    /// <code>
+    /// builder.Services.AddValiMediator(config =>
+    /// {
+    ///     config.RegisterServicesFromAssemblyContaining&lt;Program&gt;();
+    ///     config.AddResilienceBehavior();
+    /// });
+    ///
+    /// builder.Services.RegisterResiliencePoliciesFromAssemblyContaining&lt;Program&gt;();
+    /// </code>
+    /// </remarks>
+    /// <typeparam name="T">Any type in the target assembly.</typeparam>
+    /// <param name="services">The service collection to configure.</param>
+    /// <param name="lifetime">
+    /// The <see cref="ServiceLifetime"/> for discovered policy providers.
+    /// Defaults to <see cref="ServiceLifetime.Scoped"/>.
+    /// </param>
+    /// <returns>The same <see cref="IServiceCollection"/> for chaining.</returns>
+    public static IServiceCollection RegisterResiliencePoliciesFromAssemblyContaining<T>(
+        this IServiceCollection services,
+        ServiceLifetime lifetime = ServiceLifetime.Scoped)
+        => RegisterResiliencePoliciesFromAssembly(services, typeof(T).Assembly, lifetime);
+
+    /// <summary>
+    /// Auto-discovers and registers all <see cref="IResiliencePolicyProvider{TRequest}"/> implementations
+    /// from the specified assembly.
+    /// </summary>
+    /// <param name="services">The service collection to configure.</param>
+    /// <param name="assembly">The assembly to scan for policy providers.</param>
+    /// <param name="lifetime">
+    /// The <see cref="ServiceLifetime"/> for discovered policy providers.
+    /// Defaults to <see cref="ServiceLifetime.Scoped"/>.
+    /// </param>
+    /// <returns>The same <see cref="IServiceCollection"/> for chaining.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="services"/> or <paramref name="assembly"/> is null.</exception>
+    public static IServiceCollection RegisterResiliencePoliciesFromAssembly(
+        this IServiceCollection services,
+        Assembly assembly,
+        ServiceLifetime lifetime = ServiceLifetime.Scoped)
+    {
+        if (services is null) throw new ArgumentNullException(nameof(services));
+        if (assembly is null) throw new ArgumentNullException(nameof(assembly));
+
+        var providerInterfaceType = typeof(IResiliencePolicyProvider<>);
+        var types = assembly.GetTypes()
+            .Where(t => t is { IsClass: true, IsAbstract: false })
+            .ToList();
+
+        foreach (var implementationType in FindResiliencePolicyProviders(types))
+        {
+            var interfaceType = GetFirstResiliencePolicyProviderInterface(implementationType);
+            if (interfaceType is not null)
+                services.Add(ServiceDescriptor.Describe(interfaceType, implementationType, lifetime));
+        }
+
+        return services;
+    }
+
+    private static List<Type> FindResiliencePolicyProviders(List<Type> types)
+    {
+        var providerInterfaceType = typeof(IResiliencePolicyProvider<>);
+        return types
+            .Where(t => t.GetInterfaces().Any(i =>
+                i.IsGenericType && i.GetGenericTypeDefinition() == providerInterfaceType))
+            .ToList();
+    }
+
+    private static Type? GetFirstResiliencePolicyProviderInterface(Type implementationType)
+    {
+        var providerInterfaceType = typeof(IResiliencePolicyProvider<>);
+        return implementationType
+            .GetInterfaces()
+            .FirstOrDefault(i =>
+                i.IsGenericType && i.GetGenericTypeDefinition() == providerInterfaceType);
     }
 }

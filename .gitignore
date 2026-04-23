@@ -27,3 +27,9 @@ packages/
 # Archivos de configuración de Visual Studio
 .vscode/
 .vs/
+
+# macOS
+.DS_Store
+*.swp
+*.swo
+*~

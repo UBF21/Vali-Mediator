@@ -207,8 +207,30 @@ public class PlaceOrderPolicyProvider : IResiliencePolicyProvider<PlaceOrderComm
             .Build();
 }
 
-// Registration
-services.AddResiliencePolicyProvider<PlaceOrderCommand, PlaceOrderPolicyProvider>();
+// Auto-discovered — no manual registration needed
+// (see Auto-Discovery below)
+```
+
+### Auto-Discovery
+
+All `IResiliencePolicyProvider<T>` implementations are **automatically discovered** from your registered assemblies:
+
+```csharp
+builder.Services.AddValiMediator(config =>
+{
+    config.RegisterServicesFromAssemblyContaining<Program>();
+    config.AddResilienceBehavior();
+});
+
+// Auto-discovers and registers all policy providers
+builder.Services.RegisterResiliencePoliciesFromAssemblyContaining<Program>();
+```
+
+The default lifetime is `Scoped`. For stateless providers, use `Singleton`:
+
+```csharp
+builder.Services.RegisterResiliencePoliciesFromAssemblyContaining<Program>(
+    lifetime: ServiceLifetime.Singleton);
 ```
 
 ### Global policy — applies to all commands without a specific policy
