@@ -9,7 +9,7 @@
 
         <!-- Package identity -->
         <PackageId>Vali-Mediator.Resilience</PackageId>
-        <Version>1.2.3</Version>
+        <Version>1.2.4</Version>
         <Title>Vali-Mediator.Resilience</Title>
         <Product>Vali-Mediator.Resilience</Product>
         <Authors>Felipe Rafael Montenegro Morriberon</Authors>
@@ -45,6 +45,10 @@
         </Description>
 
         <PackageReleaseNotes>
+            v1.2.4 — Tests for auto-discovery:
+            - Unit tests for RegisterResiliencePoliciesFromAssemblyContaining&lt;T&gt;() and RegisterResiliencePoliciesFromAssembly(): provider discovery, default Scoped lifetime, lifetime override, null argument guards, and policy validity.
+            - Total test count: 87 → 97.
+
             v1.2.3 — Auto-discovery for IResiliencePolicyProvider&lt;T&gt;:
             - RegisterResiliencePoliciesFromAssemblyContaining&lt;T&gt;(): auto-discovers and registers all policy providers.
             - RegisterResiliencePoliciesFromAssembly(assembly, lifetime): explicit assembly variant.

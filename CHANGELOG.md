@@ -10,6 +10,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
+## Vali-Mediator.Resilience v1.2.4
+
+Released on 2026-04-22
+
+### Added
+
+- **Unit tests for auto-discovery** — `PolicyProviderRegistrationTests` covers `RegisterResiliencePoliciesFromAssemblyContaining<T>()` and `RegisterResiliencePoliciesFromAssembly()`: provider discovery, default `Scoped` lifetime, lifetime override, null argument guards, and policy validity. Brings total test count from 87 to 97.
+
+---
+
 ## Vali-Mediator.Resilience v1.2.3
 
 Released on 2026-04-22
