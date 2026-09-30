@@ -3,6 +3,7 @@ using Vali_Mediator.Core.General.Base;
 using Vali_Mediator.Core.General.Behavior;
 using Vali_Mediator_Observability.Core.Diagnostics;
 using Vali_Mediator_Observability.Core.Metrics;
+using Vali_Mediator_Observability.Core.Options;
 
 namespace Vali_Mediator_Observability.Pipeline;
 
@@ -23,20 +24,23 @@ public sealed class ObservabilityDispatchBehavior<TRequest> : IPipelineBehavior<
     where TRequest : IDispatch
 {
     private readonly IMetricsCollector _metrics;
+    private readonly ObservabilityOptions _options;
 
     /// <summary>
     /// Initializes a new instance of <see cref="ObservabilityDispatchBehavior{TRequest}"/>.
     /// </summary>
     /// <param name="metrics">The active <see cref="IMetricsCollector"/>.</param>
-    public ObservabilityDispatchBehavior(IMetricsCollector metrics)
+    /// <param name="options">Telemetry exposure options; <see cref="ObservabilityOptions"/> defaults when <c>null</c>.</param>
+    public ObservabilityDispatchBehavior(IMetricsCollector metrics, ObservabilityOptions? options = null)
     {
         _metrics = metrics;
+        _options = options ?? new ObservabilityOptions();
     }
 
     /// <inheritdoc />
     public async Task Handle(
         TRequest request,
-        Func<Task> next,
+        Func<CancellationToken, Task> next,
         CancellationToken cancellationToken)
     {
         var requestName = typeof(TRequest).Name;
@@ -50,7 +54,7 @@ public sealed class ObservabilityDispatchBehavior<TRequest> : IPipelineBehavior<
         var stopwatch = Stopwatch.StartNew();
         try
         {
-            await next().ConfigureAwait(false);
+            await next(cancellationToken).ConfigureAwait(false);
             stopwatch.Stop();
 
             activity?.SetTag("request.success", true);
@@ -62,7 +66,7 @@ public sealed class ObservabilityDispatchBehavior<TRequest> : IPipelineBehavior<
         {
             stopwatch.Stop();
 
-            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+            activity?.SetStatus(ActivityStatusCode.Error, _options.Describe(ex));
             activity?.SetTag("request.success", false);
             activity?.SetTag("request.duration_ms", stopwatch.Elapsed.TotalMilliseconds);
             activity?.SetTag("exception.type", ex.GetType().FullName);

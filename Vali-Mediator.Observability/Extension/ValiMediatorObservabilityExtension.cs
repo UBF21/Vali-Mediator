@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Vali_Mediator.Core.General.Extension;
 using Vali_Mediator_Observability.Core.Abstractions;
 using Vali_Mediator_Observability.Core.Metrics;
+using Vali_Mediator_Observability.Core.Options;
 using Vali_Mediator_Observability.Observers;
 using Vali_Mediator_Observability.Pipeline;
 
@@ -62,7 +63,24 @@ public static class ValiMediatorObservabilityExtension
     /// <param name="services">The service collection.</param>
     /// <returns>The same <see cref="IServiceCollection"/> for chaining.</returns>
     public static IServiceCollection AddObservability(this IServiceCollection services)
+        => services.AddObservability(_ => { });
+
+    /// <summary>
+    /// Registers the core observability services (see <see cref="AddObservability(IServiceCollection)"/>)
+    /// and configures <see cref="ObservabilityOptions"/>.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    /// <param name="configure">Callback that configures the telemetry exposure options.</param>
+    /// <returns>The same <see cref="IServiceCollection"/> for chaining.</returns>
+    public static IServiceCollection AddObservability(
+        this IServiceCollection services,
+        Action<ObservabilityOptions> configure)
     {
+        if (configure is null) throw new ArgumentNullException(nameof(configure));
+
+        var options = new ObservabilityOptions();
+        configure(options);
+        services.AddSingleton(options);
         services.AddSingleton<IMetricsCollector, NoOpMetricsCollector>();
         return services;
     }
