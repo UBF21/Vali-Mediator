@@ -88,6 +88,17 @@ internal sealed class CountingObserver : IRequestObserver
     }
 }
 
+internal sealed class RecordingMetrics : IMetricsCollector
+{
+    public int Started { get; private set; }
+    public int Completed { get; private set; }
+    public int Failed { get; private set; }
+
+    public void RecordRequestStarted(string requestName) => Started++;
+    public void RecordRequestCompleted(string requestName, TimeSpan duration, bool success) => Completed++;
+    public void RecordRequestFailed(string requestName, TimeSpan duration, string exceptionType) => Failed++;
+}
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -109,8 +120,8 @@ public class ObservabilityBehaviorTests
         var observer = new TrackingObserver();
         var behavior = CreateBehavior(new List<IRequestObserver> { observer });
 
-        await behavior.Handle(new PingRequest(), () => Task.FromResult("pong"), CancellationToken.None)
-            .ConfigureAwait(false);
+        await behavior.Handle(new PingRequest(), _ => Task.FromResult("pong"), CancellationToken.None)
+            ;
 
         Assert.Contains("started", observer.Events);
     }
@@ -121,8 +132,8 @@ public class ObservabilityBehaviorTests
         var observer = new TrackingObserver();
         var behavior = CreateBehavior(new List<IRequestObserver> { observer });
 
-        await behavior.Handle(new PingRequest(), () => Task.FromResult("pong"), CancellationToken.None)
-            .ConfigureAwait(false);
+        await behavior.Handle(new PingRequest(), _ => Task.FromResult("pong"), CancellationToken.None)
+            ;
 
         Assert.Contains("completed", observer.Events);
         Assert.DoesNotContain("failed", observer.Events);
@@ -141,8 +152,8 @@ public class ObservabilityBehaviorTests
         await Assert.ThrowsAsync<InvalidOperationException>(async () =>
             await behavior.Handle(
                 new PingRequest(),
-                () => throw new InvalidOperationException("boom"),
-                CancellationToken.None).ConfigureAwait(false)).ConfigureAwait(false);
+                _ => throw new InvalidOperationException("boom"),
+                CancellationToken.None));
 
         Assert.Contains("failed", observer.Events);
         Assert.DoesNotContain("completed", observer.Events);
@@ -158,8 +169,8 @@ public class ObservabilityBehaviorTests
         var observer = new TrackingObserver();
         var behavior = CreateBehavior(new List<IRequestObserver> { observer });
 
-        await behavior.Handle(new PingRequest(), () => Task.FromResult("pong"), CancellationToken.None)
-            .ConfigureAwait(false);
+        await behavior.Handle(new PingRequest(), _ => Task.FromResult("pong"), CancellationToken.None)
+            ;
 
         Assert.NotNull(observer.LastContext?.Duration);
         Assert.True(observer.LastContext!.Duration!.Value.TotalMilliseconds >= 0);
@@ -174,8 +185,8 @@ public class ObservabilityBehaviorTests
         await Assert.ThrowsAsync<InvalidOperationException>(async () =>
             await behavior.Handle(
                 new PingRequest(),
-                () => throw new InvalidOperationException("boom"),
-                CancellationToken.None).ConfigureAwait(false)).ConfigureAwait(false);
+                _ => throw new InvalidOperationException("boom"),
+                CancellationToken.None));
 
         Assert.NotNull(observer.LastContext?.Duration);
     }
@@ -191,8 +202,8 @@ public class ObservabilityBehaviorTests
         var second = new CountingObserver();
         var behavior = CreateBehavior(new List<IRequestObserver> { first, second });
 
-        await behavior.Handle(new PingRequest(), () => Task.FromResult("pong"), CancellationToken.None)
-            .ConfigureAwait(false);
+        await behavior.Handle(new PingRequest(), _ => Task.FromResult("pong"), CancellationToken.None)
+            ;
 
         Assert.Equal(1, first.StartedCount);
         Assert.Equal(1, first.CompletedCount);
@@ -210,8 +221,8 @@ public class ObservabilityBehaviorTests
         await Assert.ThrowsAsync<InvalidOperationException>(async () =>
             await behavior.Handle(
                 new PingRequest(),
-                () => throw new InvalidOperationException("boom"),
-                CancellationToken.None).ConfigureAwait(false)).ConfigureAwait(false);
+                _ => throw new InvalidOperationException("boom"),
+                CancellationToken.None));
 
         Assert.Equal(1, first.FailedCount);
         Assert.Equal(1, second.FailedCount);
@@ -230,25 +241,55 @@ public class ObservabilityBehaviorTests
         // Throwing observer is first; counting must still run.
         var behavior = CreateBehavior(new List<IRequestObserver> { throwing, counting });
 
-        await Assert.ThrowsAsync<AggregateException>(async () =>
-            await behavior.Handle(new PingRequest(), () => Task.FromResult("pong"), CancellationToken.None)
-                .ConfigureAwait(false)).ConfigureAwait(false);
+        var result = await behavior.Handle(new PingRequest(), _ => Task.FromResult("pong"), CancellationToken.None)
+            ;
 
+        Assert.Equal("pong", result);
         Assert.True(throwing.WasCalled);
         Assert.Equal(1, counting.StartedCount);
+        Assert.Equal(1, counting.CompletedCount);
     }
 
     [Fact]
-    public async Task ExceptionInOneObserver_WrappedInAggregateException_OnCompleted()
+    public async Task ThrowingObserver_OnStarted_DoesNotPreventHandlerFromRunning()
     {
-        var throwing = new ThrowingObserver();
-        var behavior = CreateBehavior(new List<IRequestObserver> { throwing });
+        var handlerRan = false;
+        var behavior = CreateBehavior(new List<IRequestObserver> { new ThrowingObserver() });
 
-        var ex = await Assert.ThrowsAsync<AggregateException>(async () =>
-            await behavior.Handle(new PingRequest(), () => Task.FromResult("pong"), CancellationToken.None)
-                .ConfigureAwait(false)).ConfigureAwait(false);
+        await behavior.Handle(new PingRequest(), _ => { handlerRan = true; return Task.FromResult("pong"); },
+            CancellationToken.None);
 
-        Assert.NotEmpty(ex.InnerExceptions);
+        Assert.True(handlerRan);
+    }
+
+    [Fact]
+    public async Task ThrowingObserver_OnCompleted_DoesNotCountRequestAsFailure()
+    {
+        var metrics = new RecordingMetrics();
+        var counting = new CountingObserver();
+        var behavior = CreateBehavior(new List<IRequestObserver> { new ThrowingObserver(), counting }, metrics);
+
+        var result = await behavior.Handle(new PingRequest(), _ => Task.FromResult("pong"), CancellationToken.None)
+            ;
+
+        Assert.Equal("pong", result);
+        Assert.Equal(1, metrics.Completed);
+        Assert.Equal(0, metrics.Failed);
+        Assert.Equal(0, counting.FailedCount);
+    }
+
+    [Fact]
+    public async Task ThrowingObserver_OnFailed_DoesNotReplaceOriginalException()
+    {
+        var counting = new CountingObserver();
+        var behavior = CreateBehavior(new List<IRequestObserver> { new ThrowingObserver(), counting });
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await behavior.Handle(new PingRequest(), _ => throw new InvalidOperationException("handler boom"),
+                CancellationToken.None));
+
+        Assert.Equal("handler boom", ex.Message);
+        Assert.Equal(1, counting.FailedCount);
     }
 
     // -----------------------------------------------------------------------
@@ -261,8 +302,8 @@ public class ObservabilityBehaviorTests
         var observer = new TrackingObserver();
         var behavior = CreateBehavior(new List<IRequestObserver> { observer });
 
-        await behavior.Handle(new PingRequest(), () => Task.FromResult("pong"), CancellationToken.None)
-            .ConfigureAwait(false);
+        await behavior.Handle(new PingRequest(), _ => Task.FromResult("pong"), CancellationToken.None)
+            ;
 
         Assert.Equal("PingRequest", observer.LastContext?.RequestName);
     }
@@ -273,8 +314,8 @@ public class ObservabilityBehaviorTests
         var observer = new TrackingObserver();
         var behavior = CreateBehavior(new List<IRequestObserver> { observer });
 
-        await behavior.Handle(new PingRequest(), () => Task.FromResult("pong"), CancellationToken.None)
-            .ConfigureAwait(false);
+        await behavior.Handle(new PingRequest(), _ => Task.FromResult("pong"), CancellationToken.None)
+            ;
 
         Assert.NotNull(observer.LastContext?.OperationId);
         Assert.NotEmpty(observer.LastContext!.OperationId!);
@@ -286,8 +327,8 @@ public class ObservabilityBehaviorTests
         var observer = new TrackingObserver();
         var behavior = CreateBehavior(new List<IRequestObserver> { observer });
 
-        await behavior.Handle(new PingRequest(), () => Task.FromResult("pong"), CancellationToken.None)
-            .ConfigureAwait(false);
+        await behavior.Handle(new PingRequest(), _ => Task.FromResult("pong"), CancellationToken.None)
+            ;
 
         Assert.Equal("pong", observer.LastContext?.Response);
     }
@@ -301,8 +342,8 @@ public class ObservabilityBehaviorTests
         await Assert.ThrowsAsync<InvalidOperationException>(async () =>
             await behavior.Handle(
                 new PingRequest(),
-                () => throw new InvalidOperationException("boom"),
-                CancellationToken.None).ConfigureAwait(false)).ConfigureAwait(false);
+                _ => throw new InvalidOperationException("boom"),
+                CancellationToken.None));
 
         Assert.NotNull(observer.LastContext?.Exception);
         Assert.IsType<InvalidOperationException>(observer.LastContext!.Exception);

@@ -26,4 +26,11 @@ public sealed class ConsoleMetricsCollector : IMetricsCollector
         Console.WriteLine(
             $"[Vali-Mediator.Metrics] FAILED    | Request: {requestName} | Exception: {exceptionType} | Duration: {duration.TotalMilliseconds:F2} ms");
     }
+
+    /// <inheritdoc />
+    public void RecordObserverError(string observerType, string hook, Exception exception)
+    {
+        Console.WriteLine(
+            $"[Vali-Mediator.Metrics] OBSERVER-ERROR | Observer: {observerType} | Hook: {hook} | Exception: {exception.GetType().FullName}");
+    }
 }

@@ -1,5 +1,6 @@
 using Vali_Mediator_Observability.Core.Abstractions;
 using Vali_Mediator_Observability.Core.Context;
+using Vali_Mediator_Observability.Core.Options;
 
 namespace Vali_Mediator_Observability.Observers;
 
@@ -9,6 +10,17 @@ namespace Vali_Mediator_Observability.Observers;
 /// </summary>
 public sealed class ConsoleLoggingObserver : IRequestObserver
 {
+    private readonly ObservabilityOptions _options;
+
+    /// <summary>
+    /// Initializes a new instance of <see cref="ConsoleLoggingObserver"/>.
+    /// </summary>
+    /// <param name="options">Telemetry exposure options; <see cref="ObservabilityOptions"/> defaults when <c>null</c>.</param>
+    public ConsoleLoggingObserver(ObservabilityOptions? options = null)
+    {
+        _options = options ?? new ObservabilityOptions();
+    }
+
     /// <inheritdoc />
     public Task OnStarted(ObservabilityContext context, CancellationToken ct = default)
     {
@@ -29,7 +41,11 @@ public sealed class ConsoleLoggingObserver : IRequestObserver
     public Task OnFailed(ObservabilityContext context, CancellationToken ct = default)
     {
         Console.WriteLine(
-            $"[Vali-Mediator] FAILED    | OperationId: {context.OperationId} | Request: {context.RequestName} | Duration: {context.Duration?.TotalMilliseconds:F2} ms | Exception: {context.Exception?.GetType().Name}: {context.Exception?.Message}");
+            $"[Vali-Mediator] FAILED    | OperationId: {context.OperationId} | Request: {context.RequestName} | Duration: {context.Duration?.TotalMilliseconds:F2} ms | Exception: {Describe(context.Exception)}");
         return Task.CompletedTask;
     }
+
+    private string Describe(Exception? ex)
+        => ex is null ? "(none)"
+            : _options.IncludeExceptionMessage ? $"{ex.GetType().Name}: {ex.Message}" : ex.GetType().Name;
 }

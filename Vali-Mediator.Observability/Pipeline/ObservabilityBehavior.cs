@@ -5,6 +5,7 @@ using Vali_Mediator_Observability.Core.Abstractions;
 using Vali_Mediator_Observability.Core.Context;
 using Vali_Mediator_Observability.Core.Diagnostics;
 using Vali_Mediator_Observability.Core.Metrics;
+using Vali_Mediator_Observability.Core.Options;
 
 namespace Vali_Mediator_Observability.Pipeline;
 
@@ -20,7 +21,7 @@ namespace Vali_Mediator_Observability.Pipeline;
 ///   <item>On success: records duration, sets <c>IsSuccess = true</c>, populates <c>Response</c>, calls <see cref="IRequestObserver.OnCompleted"/> and <see cref="IMetricsCollector.RecordRequestCompleted"/>.</item>
 ///   <item>On exception: records duration, sets <c>IsSuccess = false</c>, populates <c>Exception</c>, calls <see cref="IRequestObserver.OnFailed"/> and <see cref="IMetricsCollector.RecordRequestFailed"/>.</item>
 /// </list>
-/// All registered observers are always invoked even if one throws; exceptions from observers are collected into an <see cref="AggregateException"/>.
+/// All registered observers are always invoked even if one throws; observer exceptions are isolated (recorded as an <c>observer.error</c> activity event) and never affect the request result or the original handler exception.
 /// Register via <c>config.AddObservabilityBehavior()</c>.
 /// </remarks>
 /// <typeparam name="TRequest">The request type, must implement <see cref="IRequest{TResponse}"/>.</typeparam>
@@ -30,22 +31,28 @@ public sealed class ObservabilityBehavior<TRequest, TResponse> : IPipelineBehavi
 {
     private readonly IEnumerable<IRequestObserver> _observers;
     private readonly IMetricsCollector _metrics;
+    private readonly ObservabilityOptions _options;
 
     /// <summary>
     /// Initializes a new instance of <see cref="ObservabilityBehavior{TRequest,TResponse}"/>.
     /// </summary>
     /// <param name="observers">All registered <see cref="IRequestObserver"/> instances.</param>
     /// <param name="metrics">The active <see cref="IMetricsCollector"/>.</param>
-    public ObservabilityBehavior(IEnumerable<IRequestObserver> observers, IMetricsCollector metrics)
+    /// <param name="options">Telemetry exposure options; <see cref="ObservabilityOptions"/> defaults when <c>null</c>.</param>
+    public ObservabilityBehavior(
+        IEnumerable<IRequestObserver> observers,
+        IMetricsCollector metrics,
+        ObservabilityOptions? options = null)
     {
         _observers = observers;
         _metrics = metrics;
+        _options = options ?? new ObservabilityOptions();
     }
 
     /// <inheritdoc />
     public async Task<TResponse> Handle(
         TRequest request,
-        Func<Task<TResponse>> next,
+        Func<CancellationToken, Task<TResponse>> next,
         CancellationToken cancellationToken)
     {
         var requestName = typeof(TRequest).Name;
@@ -62,12 +69,12 @@ public sealed class ObservabilityBehavior<TRequest, TResponse> : IPipelineBehavi
         activity?.SetTag("operation.id", context.OperationId);
 
         _metrics.RecordRequestStarted(requestName);
-        await InvokeObserversOnStarted(context, cancellationToken).ConfigureAwait(false);
+        await InvokeObservers(o => o.OnStarted(context, cancellationToken), "OnStarted", activity).ConfigureAwait(false);
 
         var stopwatch = Stopwatch.StartNew();
         try
         {
-            var response = await next().ConfigureAwait(false);
+            var response = await next(cancellationToken).ConfigureAwait(false);
             stopwatch.Stop();
 
             context.Duration = stopwatch.Elapsed;
@@ -78,7 +85,7 @@ public sealed class ObservabilityBehavior<TRequest, TResponse> : IPipelineBehavi
             activity?.SetTag("request.duration_ms", stopwatch.Elapsed.TotalMilliseconds);
 
             _metrics.RecordRequestCompleted(requestName, stopwatch.Elapsed, success: true);
-            await InvokeObserversOnCompleted(context, cancellationToken).ConfigureAwait(false);
+            await InvokeObservers(o => o.OnCompleted(context, cancellationToken), "OnCompleted", activity).ConfigureAwait(false);
 
             return response;
         }
@@ -90,69 +97,56 @@ public sealed class ObservabilityBehavior<TRequest, TResponse> : IPipelineBehavi
             context.IsSuccess = false;
             context.Exception = ex;
 
-            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+            activity?.SetStatus(ActivityStatusCode.Error, _options.Describe(ex));
             activity?.SetTag("request.success", false);
             activity?.SetTag("request.duration_ms", stopwatch.Elapsed.TotalMilliseconds);
             activity?.SetTag("exception.type", ex.GetType().FullName);
 
             _metrics.RecordRequestFailed(requestName, stopwatch.Elapsed, ex.GetType().FullName ?? ex.GetType().Name);
-            await InvokeObserversOnFailed(context, cancellationToken).ConfigureAwait(false);
+            await InvokeObservers(o => o.OnFailed(context, cancellationToken), "OnFailed", activity).ConfigureAwait(false);
 
             throw;
         }
     }
 
-    private async Task InvokeObserversOnStarted(ObservabilityContext context, CancellationToken ct)
+    // Observer failures are isolated: they never alter the request outcome. They are recorded on the activity.
+    private async Task InvokeObservers(
+        Func<IRequestObserver, Task> call, string hook, Activity? activity)
     {
-        var exceptions = new List<Exception>();
         foreach (var observer in _observers)
         {
             try
             {
-                await observer.OnStarted(context, ct).ConfigureAwait(false);
+                await call(observer).ConfigureAwait(false);
             }
             catch (Exception ex)
             {
-                exceptions.Add(ex);
+                ReportObserverError(observer, hook, ex, activity);
             }
         }
-        if (exceptions.Count > 0)
-            throw new AggregateException("One or more observers threw during OnStarted.", exceptions);
     }
 
-    private async Task InvokeObserversOnCompleted(ObservabilityContext context, CancellationToken ct)
+    private void ReportObserverError(IRequestObserver observer, string hook, Exception ex, Activity? activity)
     {
-        var exceptions = new List<Exception>();
-        foreach (var observer in _observers)
-        {
-            try
-            {
-                await observer.OnCompleted(context, ct).ConfigureAwait(false);
-            }
-            catch (Exception ex)
-            {
-                exceptions.Add(ex);
-            }
-        }
-        if (exceptions.Count > 0)
-            throw new AggregateException("One or more observers threw during OnCompleted.", exceptions);
-    }
+        var observerType = observer.GetType().FullName ?? observer.GetType().Name;
 
-    private async Task InvokeObserversOnFailed(ObservabilityContext context, CancellationToken ct)
-    {
-        var exceptions = new List<Exception>();
-        foreach (var observer in _observers)
+        var tags = new ActivityTagsCollection
         {
-            try
-            {
-                await observer.OnFailed(context, ct).ConfigureAwait(false);
-            }
-            catch (Exception ex)
-            {
-                exceptions.Add(ex);
-            }
+            { "observer.type", observerType },
+            { "observer.hook", hook },
+            { "exception.type", ex.GetType().FullName }
+        };
+        if (_options.IncludeExceptionMessage)
+            tags.Add("exception.message", ex.Message);
+        activity?.AddEvent(new ActivityEvent("observer.error", tags: tags));
+
+        try
+        {
+            _metrics.RecordObserverError(observerType, hook, ex);
         }
-        if (exceptions.Count > 0)
-            throw new AggregateException("One or more observers threw during OnFailed.", exceptions);
+        catch
+        {
+            // A faulty collector must not turn an isolated observer error into a request failure.
+        }
     }
 }

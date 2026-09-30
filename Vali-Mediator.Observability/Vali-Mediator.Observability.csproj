@@ -3,41 +3,22 @@
     <PropertyGroup>
         <TargetFrameworks>net7.0;net8.0;net9.0</TargetFrameworks>
         <RootNamespace>Vali_Mediator_Observability</RootNamespace>
-        <ImplicitUsings>enable</ImplicitUsings>
-        <Nullable>enable</Nullable>
-        <GenerateDocumentationFile>true</GenerateDocumentationFile>
 
         <!-- Package identity -->
         <PackageId>Vali-Mediator.Observability</PackageId>
-        <Version>1.1.0</Version>
+        <Version>2.0.0</Version>
         <Title>Vali-Mediator.Observability</Title>
         <Product>Vali-Mediator.Observability</Product>
-        <Authors>Felipe Rafael Montenegro Morriberon</Authors>
-        <Copyright>Copyright © 2025 Felipe Rafael Montenegro Morriberon. All rights reserved.</Copyright>
 
-        <!-- Repository -->
-        <RepositoryUrl>https://github.com/UBF21/Vali-Mediator</RepositoryUrl>
-        <RepositoryType>git</RepositoryType>
         <PackageProjectUrl>https://vali-mediator-docs.netlify.app/docs/observability/overview</PackageProjectUrl>
 
-        <!-- License -->
-        <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
-        <PackageRequireLicenseAcceptance>true</PackageRequireLicenseAcceptance>
 
         <!-- Discoverability -->
         <PackageTags>observability;diagnostics;metrics;tracing;activity;mediator;cqrs;dotnet;vali;opentelemetry</PackageTags>
-        <PackageIcon>logo.png</PackageIcon>
-        <PackageReadmeFile>README.md</PackageReadmeFile>
 
-        <!-- Source Link / Symbols -->
-        <PublishRepositoryUrl>true</PublishRepositoryUrl>
-        <EmbedUntrackedSources>true</EmbedUntrackedSources>
-        <DebugType>embedded</DebugType>
-        <IncludeSymbols>true</IncludeSymbols>
-        <SymbolPackageFormat>snupkg</SymbolPackageFormat>
 
         <Description>
-            Zero-dependency observability library for Vali-Mediator (.NET 7/8/9).
+            Zero-dependency observability library for Vali-Mediator (.NET 7/8/9/10).
             Provides OpenTelemetry-compatible ActivitySource tracing, pluggable metrics via IMetricsCollector,
             and structured request lifecycle observers via IRequestObserver.
             Includes pipeline behaviours for IRequest and IDispatch (INotification / IFireAndForget),
@@ -46,6 +27,8 @@
         </Description>
 
         <PackageReleaseNotes>
+            v2.0.0 — Requires Vali-Mediator >= 3.0.0. Observer failures isolated and reported via RecordObserverError; exception messages hidden by default. See CHANGELOG.md.
+
             v1.1.0 — Package structure: now uses Vali-Mediator as NuGet dependency instead of local ProjectReference.
 
             v1.0.1 — Documentation: enabled XML documentation file for full IntelliSense support.
@@ -74,9 +57,9 @@
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="Vali-Mediator" Version="2.0.0" />
+        <ProjectReference Include="../Vali-Mediator/Vali-Mediator.csproj" />
         <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="7.0.0" />
-        <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All" />
+        <PackageReference Include="Microsoft.SourceLink.GitHub" Version="10.0.401" PrivateAssets="All" />
     </ItemGroup>
 
 </Project>

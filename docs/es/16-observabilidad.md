@@ -36,6 +36,18 @@ builder.Services.AddValiMediator(config =>
 
 `AddObservability()` registra `ValiMediatorDiagnostics`, el `IMetricsCollector` por defecto (`NoOpMetricsCollector`), y la infraestructura de observers.
 
+### Datos sensibles y errores de observers
+
+Los mensajes de excepción suelen contener datos de usuario o secretos, por eso por defecto solo se escribe el **tipo** de la excepción en el estado de la actividad, en el evento `observer.error` y en `ConsoleLoggingObserver`. Para incluir el mensaje hay que activarlo explícitamente:
+
+```csharp
+builder.Services.AddObservability(o => o.IncludeExceptionMessage = true);
+```
+
+`ObservabilityContext.Request` / `Response` siguen llevando el payload completo para observers propios; no los registres sin redactar.
+
+Un `IRequestObserver` que falla nunca cambia el resultado del request. El error se registra como evento `observer.error` de la actividad (solo visible con un `ActivityListener`) **y** se reporta a `IMetricsCollector.RecordObserverError(observerType, hook, exception)`, un miembro de interfaz por defecto que no hace nada salvo que lo sobrescribas.
+
 ---
 
 ## Trazas con ActivitySource
@@ -317,7 +329,7 @@ builder.Services.AddValiMediator(config =>
 {
     config.RegisterServicesFromAssemblyContaining<Program>();
     config.AddObservabilityBehavior();              // primero = mas externo
-    config.AddRequestBehavior<ValidationBehavior<,>>();
+    config.AddRequestBehavior(typeof(ValidationBehavior<,>));
 });
 
 var app = builder.Build();
