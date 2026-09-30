@@ -117,7 +117,7 @@ public class CoreFeaturesTests
 
     private record SlowQuery(int DelayMs) : IRequest<string>, IHasTimeout
     {
-        public TimeSpan Timeout => TimeSpan.FromMilliseconds(DelayMs / 2.0);
+        public TimeSpan Timeout => TimeSpan.FromMilliseconds(50);
     }
 
     private class SlowQueryHandler : IRequestHandler<SlowQuery, string>
@@ -131,7 +131,7 @@ public class CoreFeaturesTests
 
     private record FastQuery(int DelayMs) : IRequest<string>, IHasTimeout
     {
-        public TimeSpan Timeout => TimeSpan.FromMilliseconds(DelayMs * 2);
+        public TimeSpan Timeout => TimeSpan.FromSeconds(30);
     }
 
     private class FastQueryHandler : IRequestHandler<FastQuery, string>
@@ -153,8 +153,8 @@ public class CoreFeaturesTests
         });
 
         var mediator = provider.GetRequiredService<IValiMediator>();
-        // Timeout = 50ms, handler delay = 100ms → should cancel
-        var query = new SlowQuery(DelayMs: 200);
+        // Timeout = 50 ms, handler would take 10 s (honours its token) → must time out
+        var query = new SlowQuery(DelayMs: 10_000);
 
         await Assert.ThrowsAsync<TimeoutException>(() =>
             mediator.Send(query));
@@ -170,8 +170,8 @@ public class CoreFeaturesTests
         });
 
         var mediator = provider.GetRequiredService<IValiMediator>();
-        // Timeout = 200ms, handler delay = 50ms → should complete
-        var query = new FastQuery(DelayMs: 50);
+        // Timeout = 30 s, handler takes 10 ms → must complete
+        var query = new FastQuery(DelayMs: 10);
 
         string result = await mediator.Send(query);
 

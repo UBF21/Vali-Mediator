@@ -10,8 +10,8 @@ Vali-Mediator tiene dos interfaces de pipeline behavior distintas:
 
 | Interfaz | Aplica a | Firma |
 |---|---|---|
-| `IPipelineBehavior<TRequest, TResponse>` | Handlers `IRequest<TResponse>` | `Task<TResponse> Handle(TRequest, Func<Task<TResponse>>, CancellationToken)` |
-| `IPipelineBehavior<TRequest>` | Handlers `INotification` e `IFireAndForget` | `Task Handle(TRequest, Func<Task>, CancellationToken)` |
+| `IPipelineBehavior<TRequest, TResponse>` | Handlers `IRequest<TResponse>` | `Task<TResponse> Handle(TRequest, Func<CancellationToken, Task<TResponse>>, CancellationToken)` |
+| `IPipelineBehavior<TRequest>` | Handlers `INotification` e `IFireAndForget` | `Task Handle(TRequest, Func<CancellationToken, Task>, CancellationToken)` |
 
 > Las peticiones de streaming (`IStreamRequest<T>`) **no** pasan por el pipeline.
 
@@ -36,14 +36,14 @@ public class LoggingBehavior<TRequest, TResponse>
 
     public async Task<TResponse> Handle(
         TRequest request,
-        Func<Task<TResponse>> next,
+        Func<CancellationToken, Task<TResponse>> next,
         CancellationToken ct)
     {
         var requestName = typeof(TRequest).Name;
         _logger.LogInformation("Procesando {Request}.", requestName);
 
         var stopwatch = Stopwatch.StartNew();
-        var response = await next();
+        var response = await next(ct);
         stopwatch.Stop();
 
         _logger.LogInformation(
@@ -68,13 +68,13 @@ public class TimingBehavior<TRequest, TResponse>
 
     public async Task<TResponse> Handle(
         TRequest request,
-        Func<Task<TResponse>> next,
+        Func<CancellationToken, Task<TResponse>> next,
         CancellationToken ct)
     {
         var sw = Stopwatch.StartNew();
         try
         {
-            return await next();
+            return await next(ct);
         }
         finally
         {
@@ -104,11 +104,11 @@ public class ValidationBehavior<TRequest, TResponse>
 
     public async Task<TResponse> Handle(
         TRequest request,
-        Func<Task<TResponse>> next,
+        Func<CancellationToken, Task<TResponse>> next,
         CancellationToken ct)
     {
         if (_validator is null)
-            return await next();
+            return await next(ct);
 
         var validationResult = await _validator.ValidateAsync(request, ct);
         if (!validationResult.IsValid)
@@ -117,7 +117,7 @@ public class ValidationBehavior<TRequest, TResponse>
             throw new ValidationException(validationResult.Errors);
         }
 
-        return await next();
+        return await next(ct);
     }
 }
 ```
@@ -138,10 +138,10 @@ public class NotificationLoggingBehavior<TRequest>
     public NotificationLoggingBehavior(ILogger<NotificationLoggingBehavior<TRequest>> logger)
         => _logger = logger;
 
-    public async Task Handle(TRequest request, Func<Task> next, CancellationToken ct)
+    public async Task Handle(TRequest request, Func<CancellationToken, Task> next, CancellationToken ct)
     {
         _logger.LogInformation("Despachando {Type}.", typeof(TRequest).Name);
-        await next();
+        await next(ct);
         _logger.LogInformation("Despachado {Type}.", typeof(TRequest).Name);
     }
 }
@@ -172,12 +172,12 @@ builder.Services.AddValiMediator(config =>
     config.RegisterServicesFromAssemblyContaining<Program>();
 
     // El orden importa: Logging se ejecuta primero (más externo)
-    config.AddRequestBehavior<LoggingBehavior<,>>(ServiceLifetime.Singleton);
-    config.AddRequestBehavior<TimingBehavior<,>>(ServiceLifetime.Singleton);
-    config.AddRequestBehavior<ValidationBehavior<,>>();
+    config.AddRequestBehavior(typeof(LoggingBehavior<,>), ServiceLifetime.Singleton);
+    config.AddRequestBehavior(typeof(TimingBehavior<,>), ServiceLifetime.Singleton);
+    config.AddRequestBehavior(typeof(ValidationBehavior<,>));
 
     // Dispatch behaviors para notificaciones y fire-and-forget
-    config.AddDispatchBehavior<NotificationLoggingBehavior<>>(ServiceLifetime.Singleton);
+    config.AddDispatchBehavior(typeof(NotificationLoggingBehavior<>), ServiceLifetime.Singleton);
 });
 ```
 
@@ -198,7 +198,7 @@ public class AuthorizationBehavior<TRequest, TResponse>
 
     public async Task<TResponse> Handle(
         TRequest request,
-        Func<Task<TResponse>> next,
+        Func<CancellationToken, Task<TResponse>> next,
         CancellationToken ct)
     {
         // Verificar si la petición requiere autorización
@@ -212,7 +212,7 @@ public class AuthorizationBehavior<TRequest, TResponse>
             }
         }
 
-        return await next();
+        return await next(ct);
     }
 }
 ```
@@ -234,11 +234,11 @@ public class ResultValidationBehavior<TRequest, TResult, TValue>
 
     public async Task<TResult> Handle(
         TRequest request,
-        Func<Task<TResult>> next,
+        Func<CancellationToken, Task<TResult>> next,
         CancellationToken ct)
     {
         if (_validator is null)
-            return await next();
+            return await next(ct);
 
         var validation = await _validator.ValidateAsync(request, ct);
         if (!validation.IsValid)
@@ -250,7 +250,7 @@ public class ResultValidationBehavior<TRequest, TResult, TValue>
             return (TResult)(object)Result<TValue>.Fail(errors, ErrorType.Validation);
         }
 
-        return await next();
+        return await next(ct);
     }
 }
 ```
@@ -272,12 +272,12 @@ public class ExceptionHandlingBehavior<TRequest, TResponse>
 
     public async Task<TResponse> Handle(
         TRequest request,
-        Func<Task<TResponse>> next,
+        Func<CancellationToken, Task<TResponse>> next,
         CancellationToken ct)
     {
         try
         {
-            return await next();
+            return await next(ct);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -295,8 +295,8 @@ public class ExceptionHandlingBehavior<TRequest, TResponse>
 
 | Interfaz de behavior | Aplica a | Firma de next() |
 |---|---|---|
-| `IPipelineBehavior<TRequest, TResponse>` | `IRequest<TResponse>` | `Func<Task<TResponse>>` |
-| `IPipelineBehavior<TRequest>` | `INotification`, `IFireAndForget` | `Func<Task>` |
+| `IPipelineBehavior<TRequest, TResponse>` | `IRequest<TResponse>` | `Func<CancellationToken, Task<TResponse>>` |
+| `IPipelineBehavior<TRequest>` | `INotification`, `IFireAndForget` | `Func<CancellationToken, Task>` |
 
 | Método de registro | Interfaz registrada |
 |---|---|
@@ -304,6 +304,21 @@ public class ExceptionHandlingBehavior<TRequest, TResponse>
 | `AddDispatchBehavior<TImpl>()` | `IPipelineBehavior<>` |
 | `AddBehavior(typeof(IPipelineBehavior<,>), typeof(MyBehavior<,>))` | `IPipelineBehavior<,>` |
 | `AddBehavior(typeof(IPipelineBehavior<>), typeof(MyBehavior<>))` | `IPipelineBehavior<>` |
+
+---
+
+## Migrar desde 2.x: `next` ahora recibe un token
+
+`next` es ahora `Func<CancellationToken, Task<TResponse>>` (y `Func<CancellationToken, Task>` para notificaciones y fire-and-forget). Pasa el token que el siguiente paso debe observar: el que recibiste, o un token vinculado si tu behavior puede cancelar por su cuenta (como hace `TimeoutBehavior`, de modo que un handler que excede el timeout realmente se cancela).
+
+```csharp
+// Antes
+return await next();
+// Después
+return await next(cancellationToken);
+```
+
+Las lambdas que ignoran el token pasan a `_ => ...`. Todos los paquetes de extensión (Caching, Idempotency, Observability, Resilience) deben actualizarse a un release compilado contra el nuevo core.
 
 ---
 

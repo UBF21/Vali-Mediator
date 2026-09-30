@@ -255,6 +255,6 @@ public class NotificationTests
         var mediator = scope.ServiceProvider.GetRequiredService<IValiMediator>();
 
         // Should complete without throwing
-        await mediator.Publish(new SimpleEvent("no-handlers"));
+        Assert.Null(await Record.ExceptionAsync(() => mediator.Publish(new SimpleEvent("no-handlers"))));
     }
 }

@@ -3,41 +3,22 @@
     <PropertyGroup>
         <TargetFrameworks>net7.0;net8.0;net9.0</TargetFrameworks>
         <RootNamespace>Vali_Mediator</RootNamespace>
-        <ImplicitUsings>enable</ImplicitUsings>
-        <Nullable>enable</Nullable>
-        <GenerateDocumentationFile>true</GenerateDocumentationFile>
 
         <!-- Package identity -->
         <PackageId>Vali-Mediator</PackageId>
-        <Version>2.0.1</Version>
+        <Version>3.0.0</Version>
         <Title>Vali-Mediator</Title>
         <Product>Vali-Mediator</Product>
-        <Authors>Felipe Rafael Montenegro Morriberon</Authors>
-        <Copyright>Copyright © 2025 Felipe Rafael Montenegro Morriberon. All rights reserved.</Copyright>
 
-        <!-- Repository -->
-        <RepositoryUrl>https://github.com/UBF21/Vali-Mediator</RepositoryUrl>
-        <RepositoryType>git</RepositoryType>
         <PackageProjectUrl>https://vali-mediator-docs.netlify.app/</PackageProjectUrl>
 
-        <!-- License -->
-        <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
-        <PackageRequireLicenseAcceptance>true</PackageRequireLicenseAcceptance>
 
         <!-- Discoverability -->
         <PackageTags>mediator;cqrs;pipeline;dotnet;di;clean-architecture;vali;result;saga;streaming</PackageTags>
-        <PackageIcon>logo.png</PackageIcon>
-        <PackageReadmeFile>README.md</PackageReadmeFile>
 
-        <!-- Source Link / Symbols -->
-        <PublishRepositoryUrl>true</PublishRepositoryUrl>
-        <EmbedUntrackedSources>true</EmbedUntrackedSources>
-        <DebugType>embedded</DebugType>
-        <IncludeSymbols>true</IncludeSymbols>
-        <SymbolPackageFormat>snupkg</SymbolPackageFormat>
 
         <Description>
-            Lightweight, zero-dependency mediator library for .NET 7/8/9.
+            Lightweight, zero-dependency mediator library for .NET 7/8/9/10.
             Implements CQRS with requests, notifications (pub/sub), fire-and-forget commands, async streaming,
             pipeline behaviors, pre/post processors, compensation (Saga pattern), and a built-in Result&lt;T&gt; type.
             Designed for seamless DI integration — no external dependencies beyond
@@ -45,6 +26,8 @@
         </Description>
 
         <PackageReleaseNotes>
+            v3.0.0 — BREAKING: pipeline `next` now receives a CancellationToken (TimeoutBehavior really cancels the handler); Publish resolves handlers by runtime type; default(Result) is an explicit failure; typed cached dispatchers (no per-call reflection); bounded SendAll. See CHANGELOG.md and docs/MIGRACION-3.0.md.
+
             v2.0.1 — Documentation:
             - Enabled XML documentation file generation (GenerateDocumentationFile) — full IntelliSense for all public APIs.
             - Added missing XML doc comments on Unit, Result, and ValiMediator members.
@@ -88,7 +71,7 @@
 
     <ItemGroup>
         <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="7.0.0" />
-        <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All" />
+        <PackageReference Include="Microsoft.SourceLink.GitHub" Version="10.0.401" PrivateAssets="All" />
     </ItemGroup>
 
 </Project>

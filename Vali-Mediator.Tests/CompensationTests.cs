@@ -86,6 +86,6 @@ public class CompensationTests
         var operation = new NoCompensationOperation();
 
         // Should not throw even though no handlers are registered
-        await operation.Compensate(mediator);
+        Assert.Null(await Record.ExceptionAsync(() => operation.Compensate(mediator)));
     }
 }

@@ -1,6 +1,6 @@
 # Vali-Mediator
 
-Vali-Mediator is a lightweight, zero-dependency mediator library for .NET 7, 8, and 9. It implements the CQRS pattern through requests, notifications (pub/sub), fire-and-forget commands, async streaming, pipeline behaviors, pre/post processors, Saga-pattern compensation flows, and a built-in `Result<T>` type. The library integrates seamlessly with `Microsoft.Extensions.DependencyInjection` and has no other external dependencies.
+Vali-Mediator is a lightweight, zero-dependency mediator library for .NET 7, 8, 9, and 10. It implements the CQRS pattern through requests, notifications (pub/sub), fire-and-forget commands, async streaming, pipeline behaviors, pre/post processors, Saga-pattern compensation flows, and a built-in `Result<T>` type. The library integrates seamlessly with `Microsoft.Extensions.DependencyInjection` and has no other external dependencies.
 
 ## Installation
 
@@ -192,10 +192,10 @@ public class LoggingBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, 
     public LoggingBehavior(ILogger<LoggingBehavior<TRequest, TResponse>> logger)
         => _logger = logger;
 
-    public async Task<TResponse> Handle(TRequest request, Func<Task<TResponse>> next, CancellationToken cancellationToken)
+    public async Task<TResponse> Handle(TRequest request, Func<CancellationToken, Task<TResponse>> next, CancellationToken cancellationToken)
     {
         _logger.LogInformation("Handling {Request}", typeof(TRequest).Name);
-        var response = await next();
+        var response = await next(cancellationToken);
         _logger.LogInformation("Handled {Request}", typeof(TRequest).Name);
         return response;
     }
@@ -205,7 +205,7 @@ public class LoggingBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, 
 builder.Services.AddValiMediator(config =>
 {
     config.RegisterServicesFromAssemblyContaining<Program>()
-          .AddRequestBehavior<LoggingBehavior<,>>();
+          .AddRequestBehavior(typeof(LoggingBehavior<,>));
 });
 ```
 

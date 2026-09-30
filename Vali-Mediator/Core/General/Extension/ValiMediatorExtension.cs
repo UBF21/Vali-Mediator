@@ -33,137 +33,95 @@ public static class ValiMediatorExtension
 
         services.AddScoped<IValiMediator, ValiMediator>();
 
+        if (config.SendAllMaxDegreeOfParallelism is { } sendAllLimit)
+            services.AddSingleton(new ValiMediatorOptions { SendAllMaxDegreeOfParallelism = sendAllLimit });
+
+        // Includes registrations from earlier AddValiMediator calls on the same collection.
+        var scanned = new Dictionary<(Type Service, Type Implementation), ServiceDescriptor>();
+        foreach (var descriptor in services)
+            if (descriptor.ImplementationType is not null)
+                scanned[(descriptor.ServiceType, descriptor.ImplementationType)] = descriptor;
+
         foreach (var (assembly, lifetime) in config.GetAssemblies())
         {
-            var types = assembly.GetTypes()
-                .Where(t => t is { IsClass: true, IsAbstract: false })
+            var types = GetLoadableTypes(assembly)
+                .Where(t => t is { IsClass: true, IsAbstract: false, IsGenericTypeDefinition: false })
                 .ToList();
 
-            RegisterRequestHandlers(services, types, lifetime);
-            RegisterNotificationHandlers(services, types, lifetime);
-            RegisterFireAndForgetHandlers(services, types, lifetime);
-            RegisterStreamHandlers(services, types, lifetime);
-            RegisterAutoDiscoveredPreProcessors(services, types, lifetime);
-            RegisterAutoDiscoveredPostProcessors(services, types, lifetime);
+            foreach (var openInterface in ScannedInterfaces)
+                RegisterImplementations(services, scanned, types, openInterface, lifetime);
         }
 
-        RegisterBehaviors(services, config);
-        RegisterExplicitPreProcessors(services, config);
-        RegisterExplicitPostProcessors(services, config);
-        RegisterExplicitRequestPreProcessors(services, config);
-        RegisterExplicitRequestPostProcessors(services, config);
+        RegisterExplicit(services, config.GetBehaviors());
+        RegisterExplicit(services, config.GetPreProcessors());
+        RegisterExplicit(services, config.GetPostProcessors());
+        RegisterExplicit(services, config.GetRequestPreProcessors());
+        RegisterExplicit(services, config.GetRequestPostProcessors());
 
         return services;
     }
 
-    // -------------------------------------------------------------------------
-    // Auto-discovered from assembly scan
-    // -------------------------------------------------------------------------
-
-    private static void RegisterRequestHandlers(
-        IServiceCollection services, List<Type> types, ServiceLifetime lifetime)
+    private static readonly Type[] ScannedInterfaces =
     {
-        foreach (var handlerType in FindImplementations(types, typeof(IRequestHandler<,>)))
+        typeof(IRequestHandler<,>),
+        typeof(INotificationHandler<>),
+        typeof(IFireAndForgetHandler<>),
+        typeof(IStreamRequestHandler<,>),
+        typeof(IPreProcessor<>),
+        typeof(IPreProcessor<,>),
+        typeof(IPostProcessor<>),
+        typeof(IPostProcessor<,>),
+    };
+
+    // Registers every closed form of openInterface a class implements. An exact (service, implementation)
+    // pair scanned again is never duplicated: the last lifetime wins.
+    private static void RegisterImplementations(
+        IServiceCollection services,
+        Dictionary<(Type Service, Type Implementation), ServiceDescriptor> scanned,
+        List<Type> types,
+        Type openInterface,
+        ServiceLifetime lifetime)
+    {
+        foreach (var implementationType in types)
+        foreach (var interfaceType in implementationType.GetInterfaces()
+                     .Where(i => i.IsGenericType && i.GetGenericTypeDefinition() == openInterface))
         {
-            var interfaceType = GetFirstInterface(handlerType, typeof(IRequestHandler<,>));
-            services.Add(ServiceDescriptor.Describe(interfaceType, handlerType, lifetime));
+            if (scanned.TryGetValue((interfaceType, implementationType), out var existing))
+            {
+                if (existing.Lifetime == lifetime) continue;
+                services.Remove(existing);
+            }
+
+            var created = ServiceDescriptor.Describe(interfaceType, implementationType, lifetime);
+            services.Add(created);
+            scanned[(interfaceType, implementationType)] = created;
         }
     }
 
-    private static void RegisterNotificationHandlers(
-        IServiceCollection services, List<Type> types, ServiceLifetime lifetime)
+    private static void RegisterExplicit(
+        IServiceCollection services,
+        IReadOnlyList<(Type ServiceType, Type ImplementationType, ServiceLifetime Lifetime)> registrations)
     {
-        foreach (var handlerType in FindImplementations(types, typeof(INotificationHandler<>)))
+        foreach (var (serviceType, implementationType, lifetime) in registrations)
         {
-            var interfaceType = GetFirstInterface(handlerType, typeof(INotificationHandler<>));
-            services.Add(ServiceDescriptor.Describe(interfaceType, handlerType, lifetime));
-        }
-    }
+            // An explicit registration must not duplicate the same pair already added by the assembly scan.
+            if (services.Any(d => d.ServiceType == serviceType && d.ImplementationType == implementationType))
+                continue;
 
-    private static void RegisterFireAndForgetHandlers(
-        IServiceCollection services, List<Type> types, ServiceLifetime lifetime)
-    {
-        foreach (var handlerType in FindImplementations(types, typeof(IFireAndForgetHandler<>)))
-        {
-            var interfaceType = GetFirstInterface(handlerType, typeof(IFireAndForgetHandler<>));
-            services.Add(ServiceDescriptor.Describe(interfaceType, handlerType, lifetime));
-        }
-    }
-
-    private static void RegisterStreamHandlers(
-        IServiceCollection services, List<Type> types, ServiceLifetime lifetime)
-    {
-        foreach (var handlerType in FindImplementations(types, typeof(IStreamRequestHandler<,>)))
-        {
-            var interfaceType = GetFirstInterface(handlerType, typeof(IStreamRequestHandler<,>));
-            services.Add(ServiceDescriptor.Describe(interfaceType, handlerType, lifetime));
-        }
-    }
-
-    private static void RegisterAutoDiscoveredPreProcessors(
-        IServiceCollection services, List<Type> types, ServiceLifetime lifetime)
-    {
-        foreach (var processorType in FindImplementations(types, typeof(IPreProcessor<>)))
-        {
-            var interfaceType = GetFirstInterface(processorType, typeof(IPreProcessor<>));
-            services.Add(ServiceDescriptor.Describe(interfaceType, processorType, lifetime));
-        }
-
-        foreach (var processorType in FindImplementations(types, typeof(IPreProcessor<,>)))
-        {
-            var interfaceType = GetFirstInterface(processorType, typeof(IPreProcessor<,>));
-            services.Add(ServiceDescriptor.Describe(interfaceType, processorType, lifetime));
-        }
-    }
-
-    private static void RegisterAutoDiscoveredPostProcessors(
-        IServiceCollection services, List<Type> types, ServiceLifetime lifetime)
-    {
-        foreach (var processorType in FindImplementations(types, typeof(IPostProcessor<>)))
-        {
-            var interfaceType = GetFirstInterface(processorType, typeof(IPostProcessor<>));
-            services.Add(ServiceDescriptor.Describe(interfaceType, processorType, lifetime));
-        }
-
-        foreach (var processorType in FindImplementations(types, typeof(IPostProcessor<,>)))
-        {
-            var interfaceType = GetFirstInterface(processorType, typeof(IPostProcessor<,>));
-            services.Add(ServiceDescriptor.Describe(interfaceType, processorType, lifetime));
-        }
-    }
-
-    // -------------------------------------------------------------------------
-    // Explicit registrations from ValiMediatorConfiguration
-    // -------------------------------------------------------------------------
-
-    private static void RegisterBehaviors(IServiceCollection services, ValiMediatorConfiguration config)
-    {
-        foreach (var (serviceType, implementationType, lifetime) in config.GetBehaviors())
             services.Add(ServiceDescriptor.Describe(serviceType, implementationType, lifetime));
+        }
     }
 
-    private static void RegisterExplicitPreProcessors(IServiceCollection services, ValiMediatorConfiguration config)
+    private static IEnumerable<Type> GetLoadableTypes(Assembly assembly)
     {
-        foreach (var (serviceType, implementationType, lifetime) in config.GetPreProcessors())
-            services.Add(ServiceDescriptor.Describe(serviceType, implementationType, lifetime));
-    }
-
-    private static void RegisterExplicitPostProcessors(IServiceCollection services, ValiMediatorConfiguration config)
-    {
-        foreach (var (serviceType, implementationType, lifetime) in config.GetPostProcessors())
-            services.Add(ServiceDescriptor.Describe(serviceType, implementationType, lifetime));
-    }
-
-    private static void RegisterExplicitRequestPreProcessors(IServiceCollection services, ValiMediatorConfiguration config)
-    {
-        foreach (var (serviceType, implementationType, lifetime) in config.GetRequestPreProcessors())
-            services.Add(ServiceDescriptor.Describe(serviceType, implementationType, lifetime));
-    }
-
-    private static void RegisterExplicitRequestPostProcessors(IServiceCollection services, ValiMediatorConfiguration config)
-    {
-        foreach (var (serviceType, implementationType, lifetime) in config.GetRequestPostProcessors())
-            services.Add(ServiceDescriptor.Describe(serviceType, implementationType, lifetime));
+        try
+        {
+            return assembly.GetTypes();
+        }
+        catch (ReflectionTypeLoadException ex)
+        {
+            return ex.Types.Where(t => t is not null)!;
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -201,16 +159,4 @@ public static class ValiMediatorExtension
             new Vali_Mediator.Core.Notification.InMemoryDeadLetterQueue(maxEntries));
         return services;
     }
-
-    // -------------------------------------------------------------------------
-    // Shared helpers
-    // -------------------------------------------------------------------------
-
-    private static IEnumerable<Type> FindImplementations(List<Type> types, Type openGenericInterface)
-        => types.Where(t => t.GetInterfaces()
-            .Any(i => i.IsGenericType && i.GetGenericTypeDefinition() == openGenericInterface));
-
-    private static Type GetFirstInterface(Type implementationType, Type openGenericInterface)
-        => implementationType.GetInterfaces()
-            .First(i => i.IsGenericType && i.GetGenericTypeDefinition() == openGenericInterface);
 }

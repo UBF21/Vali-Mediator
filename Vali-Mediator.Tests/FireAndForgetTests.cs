@@ -47,10 +47,10 @@ public class FireAndForgetTests
         private readonly List<string> _log;
         public LoggingFireAndForgetBehavior(List<string> log) => _log = log;
 
-        public async Task Handle(TRequest request, Func<Task> next, CancellationToken cancellationToken)
+        public async Task Handle(TRequest request, Func<CancellationToken, Task> next, CancellationToken cancellationToken)
         {
             _log.Add("behavior-before");
-            await next();
+            await next(cancellationToken);
             _log.Add("behavior-after");
         }
     }

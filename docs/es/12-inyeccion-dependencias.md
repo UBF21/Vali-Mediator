@@ -78,13 +78,13 @@ Los assemblies duplicados se detectan e ignoran automáticamente.
 
 ### AddRequestBehavior\<TImplementation\>
 
-Registra un behavior open-generic para handlers `IRequest<TResponse>`:
+Registra un behavior para handlers `IRequest<TResponse>`. Pasa un tipo open-generic (overload con `Type`) para aplicarlo a toda request, o un tipo cerrado (overload genérico) para atarlo a tipos concretos:
 
 ```csharp
-// TImplementation debe ser un tipo open-generic
-config.AddRequestBehavior<LoggingBehavior<,>>();
-config.AddRequestBehavior<TimingBehavior<,>>(ServiceLifetime.Singleton);
-config.AddRequestBehavior<ValidationBehavior<,>>();
+config.AddRequestBehavior<PingLoggingBehavior>();   // cerrado: implementa IPipelineBehavior<Ping, string>
+config.AddRequestBehavior(typeof(LoggingBehavior<,>));
+config.AddRequestBehavior(typeof(TimingBehavior<,>), ServiceLifetime.Singleton);
+config.AddRequestBehavior(typeof(ValidationBehavior<,>));
 ```
 
 Equivalente a:
@@ -95,11 +95,12 @@ config.AddBehavior(typeof(IPipelineBehavior<,>), typeof(LoggingBehavior<,>));
 
 ### AddDispatchBehavior\<TImplementation\>
 
-Registra un behavior open-generic para handlers `INotification` e `IFireAndForget`:
+Registra un behavior para handlers `INotification` e `IFireAndForget` (open-generic con `Type`, o cerrado con el overload genérico):
 
 ```csharp
-config.AddDispatchBehavior<NotificationLoggingBehavior<>>();
-config.AddDispatchBehavior<AuditBehavior<>>(ServiceLifetime.Singleton);
+config.AddDispatchBehavior<ReleaseStockBehavior>(); // cerrado: implementa IPipelineBehavior<ReleaseStock>
+config.AddDispatchBehavior(typeof(NotificationLoggingBehavior<>));
+config.AddDispatchBehavior(typeof(AuditBehavior<>), ServiceLifetime.Singleton);
 ```
 
 Equivalente a:
@@ -189,14 +190,14 @@ builder.Services.AddValiMediator(config =>
     config.RegisterServicesFromAssemblyContaining<Program>();
 
     // Behaviors sin estado: Singleton — evita alocaciones en cada petición
-    config.AddRequestBehavior<LoggingBehavior<,>>(ServiceLifetime.Singleton);
-    config.AddRequestBehavior<TimingBehavior<,>>(ServiceLifetime.Singleton);
+    config.AddRequestBehavior(typeof(LoggingBehavior<,>), ServiceLifetime.Singleton);
+    config.AddRequestBehavior(typeof(TimingBehavior<,>), ServiceLifetime.Singleton);
 
     // Behavior con estado: Scoped — usa servicios por petición
-    config.AddRequestBehavior<ValidationBehavior<,>>(ServiceLifetime.Scoped);
+    config.AddRequestBehavior(typeof(ValidationBehavior<,>), ServiceLifetime.Scoped);
 
     // Dispatch behaviors
-    config.AddDispatchBehavior<NotificationLoggingBehavior<>>(ServiceLifetime.Singleton);
+    config.AddDispatchBehavior(typeof(NotificationLoggingBehavior<>), ServiceLifetime.Singleton);
 });
 ```
 
@@ -227,12 +228,12 @@ builder.Services.AddValiMediator(config =>
     config.RegisterServicesFromAssemblyContaining<InventoryHandler>();
 
     // Pipeline de peticiones: Logging → Timing → Validation → Handler
-    config.AddRequestBehavior<LoggingBehavior<,>>(ServiceLifetime.Singleton);
-    config.AddRequestBehavior<TimingBehavior<,>>(ServiceLifetime.Singleton);
-    config.AddRequestBehavior<ValidationBehavior<,>>();
+    config.AddRequestBehavior(typeof(LoggingBehavior<,>), ServiceLifetime.Singleton);
+    config.AddRequestBehavior(typeof(TimingBehavior<,>), ServiceLifetime.Singleton);
+    config.AddRequestBehavior(typeof(ValidationBehavior<,>));
 
     // Pipeline de dispatch: Logging → Handler
-    config.AddDispatchBehavior<DispatchLoggingBehavior<>>(ServiceLifetime.Singleton);
+    config.AddDispatchBehavior(typeof(DispatchLoggingBehavior<>), ServiceLifetime.Singleton);
 });
 
 builder.Services.AddControllers();
