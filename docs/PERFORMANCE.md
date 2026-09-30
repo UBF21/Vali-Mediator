@@ -72,7 +72,4 @@ benchmark or a multi-hour soak.
 ## How to reproduce
 
 Requires Docker, [k6](https://k6.io/), .NET SDK 7–10, and Python 3. Scripts and the full raw report
-live outside this repository (local-only, machine-specific paths and credentials). See
-[docs/INFRAESTRUCTURA-PRUEBAS.md](INFRAESTRUCTURA-PRUEBAS.md) for the in-repo integration tests that
-exercise the same Redis/PostgreSQL code paths (cache hit/miss, distributed idempotency, degradation
-under injected latency/outages) in a way anyone can run with `dotnet test`.
+live outside this repository (local-only, machine-specific paths and credentials).
