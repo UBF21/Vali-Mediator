@@ -36,11 +36,11 @@ public sealed class CachingBehaviorTests
         where TRequest : IRequest<TResponse>
         => new CachingBehavior<TRequest, TResponse>(store);
 
-    private static Func<Task<string>> HandlerReturning(string value, ref int callCount)
+    private static Func<CancellationToken, Task<string>> HandlerReturning(string value, ref int callCount)
     {
         int localCount = 0;
         callCount = 0;
-        Func<Task<string>> fn = () =>
+        Func<CancellationToken, Task<string>> fn = _ =>
         {
             localCount++;
             return Task.FromResult(value);
@@ -62,7 +62,7 @@ public sealed class CachingBehaviorTests
         int calls = 0;
         var result = await behavior.Handle(
             new PlainQuery(),
-            () => { calls++; return Task.FromResult("plain"); },
+            _ => { calls++; return Task.FromResult("plain"); },
             CancellationToken.None);
 
         Assert.Equal("plain", result);
@@ -83,7 +83,7 @@ public sealed class CachingBehaviorTests
         int calls = 0;
         var result = await behavior.Handle(
             request,
-            () => { calls++; return Task.FromResult("value1"); },
+            _ => { calls++; return Task.FromResult("value1"); },
             CancellationToken.None);
 
         Assert.Equal("value1", result);
@@ -107,7 +107,7 @@ public sealed class CachingBehaviorTests
         var request = new CacheableQuery { CacheKey = "q1" };
 
         int calls = 0;
-        Func<Task<string>> handler = () => { calls++; return Task.FromResult("fresh"); };
+        Func<CancellationToken, Task<string>> handler = _ => { calls++; return Task.FromResult("fresh"); };
 
         await behavior.Handle(request, handler, CancellationToken.None);
         var second = await behavior.Handle(request, handler, CancellationToken.None);
@@ -128,7 +128,7 @@ public sealed class CachingBehaviorTests
         var request = new CacheableQuery { CacheKey = "q2", BypassCache = true };
 
         int calls = 0;
-        Func<Task<string>> handler = () => { calls++; return Task.FromResult("bypassed"); };
+        Func<CancellationToken, Task<string>> handler = _ => { calls++; return Task.FromResult("bypassed"); };
 
         await behavior.Handle(request, handler, CancellationToken.None);
         await behavior.Handle(request, handler, CancellationToken.None);
@@ -153,7 +153,7 @@ public sealed class CachingBehaviorTests
         int calls = 0;
         var result = await behavior.Handle(
             request,
-            () => { calls++; return Task.FromResult("fresh"); },
+            _ => { calls++; return Task.FromResult("fresh"); },
             CancellationToken.None);
 
         Assert.Equal("fresh", result);
@@ -178,7 +178,7 @@ public sealed class CachingBehaviorTests
 
         await behavior.Handle(
             request,
-            () => Task.FromResult("data"),
+            _ => Task.FromResult("data"),
             CancellationToken.None);
 
         var (found, _) = await store.TryGetAsync<string>("q4");
@@ -197,7 +197,7 @@ public sealed class CachingBehaviorTests
         int calls = 0;
         var result = await behavior.Handle(
             request,
-            () => { calls++; return Task.FromResult("fresh"); },
+            _ => { calls++; return Task.FromResult("fresh"); },
             CancellationToken.None);
 
         Assert.Equal("cached", result);
@@ -215,7 +215,7 @@ public sealed class CachingBehaviorTests
         var behavior = new CachingBehavior<CacheableQuery, string>(store);
         var request = new CacheableQuery { CacheKey = "q6", CacheGroup = "grp1" };
 
-        await behavior.Handle(request, () => Task.FromResult("grouped"), CancellationToken.None);
+        await behavior.Handle(request, _ => Task.FromResult("grouped"), CancellationToken.None);
 
         // Verify entry is present
         var (f1, _) = await store.TryGetAsync<string>("q6");
