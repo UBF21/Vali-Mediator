@@ -7,6 +7,7 @@ namespace Vali_Mediator.AspNetCore;
 
 /// <summary>
 /// Extension methods for mapping <see cref="Result{T}"/> and <see cref="Result"/> to ASP.NET Core HTTP responses.
+/// MVC (<c>ToActionResult</c>) and Minimal API (<c>ToHttpResult</c>) produce the same status codes, titles and bodies.
 /// </summary>
 public static class ResultExtensions
 {
@@ -23,23 +24,31 @@ public static class ResultExtensions
     ///   <item><see cref="ErrorType.Conflict"/> → 409 ProblemDetails</item>
     ///   <item><see cref="ErrorType.Unauthorized"/> → 401 ProblemDetails</item>
     ///   <item><see cref="ErrorType.Forbidden"/> → 403 ProblemDetails</item>
-    ///   <item><see cref="ErrorType.Failure"/> → 500 ProblemDetails</item>
+    ///   <item><see cref="ErrorType.Failure"/> → 500 ProblemDetails with a generic detail (see <see cref="ResultHttpOptions"/>)</item>
     /// </list>
     /// </summary>
+    /// <typeparam name="T">The result value type.</typeparam>
+    /// <param name="result">The result to map.</param>
     public static IActionResult ToActionResult<T>(this Result<T> result)
+        => result.ToActionResult(ResultHttpOptions.Default);
+
+    /// <summary>
+    /// Maps a <see cref="Result{T}"/> to an <see cref="IActionResult"/> using the given options.
+    /// </summary>
+    /// <typeparam name="T">The result value type.</typeparam>
+    /// <param name="result">The result to map.</param>
+    /// <param name="options">Rendering options; see <see cref="ResultHttpOptions"/>.</param>
+    public static IActionResult ToActionResult<T>(this Result<T> result, ResultHttpOptions options)
     {
+        ArgumentNullException.ThrowIfNull(options);
+
         if (result.IsSuccess)
             return new OkObjectResult(result.Value);
 
-        return result.ErrorType switch
-        {
-            ErrorType.Validation => BuildValidationActionResult(result.ValidationErrors, result.Error),
-            ErrorType.NotFound => new NotFoundObjectResult(BuildProblemDetails(404, "Not Found", result.Error)),
-            ErrorType.Conflict => new ConflictObjectResult(BuildProblemDetails(409, "Conflict", result.Error)),
-            ErrorType.Unauthorized => new UnauthorizedObjectResult(BuildProblemDetails(401, "Unauthorized", result.Error)),
-            ErrorType.Forbidden => new ObjectResult(BuildProblemDetails(403, "Forbidden", result.Error)) { StatusCode = 403 },
-            _ => new ObjectResult(BuildProblemDetails(500, "Internal Server Error", result.Error)) { StatusCode = 500 }
-        };
+        if (result.ErrorType == ErrorType.Validation)
+            return BuildValidationActionResult(result.ValidationErrors, result.Error);
+
+        return ToFailureActionResult(result.ErrorType, result.Error, options);
     }
 
     // -----------------------------------------------------------------------
@@ -50,20 +59,24 @@ public static class ResultExtensions
     /// Maps a non-generic <see cref="Result"/> to an <see cref="IActionResult"/>.
     /// On success returns 204 No Content.
     /// </summary>
+    /// <param name="result">The result to map.</param>
     public static IActionResult ToActionResult(this Result result)
+        => result.ToActionResult(ResultHttpOptions.Default);
+
+    /// <summary>
+    /// Maps a non-generic <see cref="Result"/> to an <see cref="IActionResult"/> using the given options.
+    /// On success returns 204 No Content.
+    /// </summary>
+    /// <param name="result">The result to map.</param>
+    /// <param name="options">Rendering options; see <see cref="ResultHttpOptions"/>.</param>
+    public static IActionResult ToActionResult(this Result result, ResultHttpOptions options)
     {
+        ArgumentNullException.ThrowIfNull(options);
+
         if (result.IsSuccess)
             return new NoContentResult();
 
-        return result.ErrorType switch
-        {
-            ErrorType.Validation => new BadRequestObjectResult(BuildProblemDetails(400, "Validation Failed", result.Error)),
-            ErrorType.NotFound => new NotFoundObjectResult(BuildProblemDetails(404, "Not Found", result.Error)),
-            ErrorType.Conflict => new ConflictObjectResult(BuildProblemDetails(409, "Conflict", result.Error)),
-            ErrorType.Unauthorized => new UnauthorizedObjectResult(BuildProblemDetails(401, "Unauthorized", result.Error)),
-            ErrorType.Forbidden => new ObjectResult(BuildProblemDetails(403, "Forbidden", result.Error)) { StatusCode = 403 },
-            _ => new ObjectResult(BuildProblemDetails(500, "Internal Server Error", result.Error)) { StatusCode = 500 }
-        };
+        return ToFailureActionResult(result.ErrorType, result.Error, options);
     }
 
     // -----------------------------------------------------------------------
@@ -71,22 +84,31 @@ public static class ResultExtensions
     // -----------------------------------------------------------------------
 
     /// <summary>
-    /// Maps a <see cref="Result{T}"/> to a Minimal API <see cref="IResult"/>.
+    /// Maps a <see cref="Result{T}"/> to a Minimal API <see cref="HttpIResult"/>.
+    /// Uses the same status codes, titles and bodies as <c>ToActionResult</c>.
     /// </summary>
+    /// <typeparam name="T">The result value type.</typeparam>
+    /// <param name="result">The result to map.</param>
     public static HttpIResult ToHttpResult<T>(this Result<T> result)
+        => result.ToHttpResult(ResultHttpOptions.Default);
+
+    /// <summary>
+    /// Maps a <see cref="Result{T}"/> to a Minimal API <see cref="HttpIResult"/> using the given options.
+    /// </summary>
+    /// <typeparam name="T">The result value type.</typeparam>
+    /// <param name="result">The result to map.</param>
+    /// <param name="options">Rendering options; see <see cref="ResultHttpOptions"/>.</param>
+    public static HttpIResult ToHttpResult<T>(this Result<T> result, ResultHttpOptions options)
     {
+        ArgumentNullException.ThrowIfNull(options);
+
         if (result.IsSuccess)
             return Results.Ok(result.Value);
 
-        return result.ErrorType switch
-        {
-            ErrorType.Validation => BuildValidationHttpResult(result.ValidationErrors, result.Error),
-            ErrorType.NotFound => Results.NotFound(BuildProblemDetails(404, "Not Found", result.Error)),
-            ErrorType.Conflict => Results.Conflict(BuildProblemDetails(409, "Conflict", result.Error)),
-            ErrorType.Unauthorized => Results.Unauthorized(),
-            ErrorType.Forbidden => Results.StatusCode(403),
-            _ => Results.Problem(result.Error, statusCode: 500)
-        };
+        if (result.ErrorType == ErrorType.Validation)
+            return BuildValidationHttpResult(result.ValidationErrors, result.Error);
+
+        return Results.Problem(BuildFailureProblem(result.ErrorType, result.Error, options));
     }
 
     // -----------------------------------------------------------------------
@@ -94,23 +116,27 @@ public static class ResultExtensions
     // -----------------------------------------------------------------------
 
     /// <summary>
-    /// Maps a non-generic <see cref="Result"/> to a Minimal API <see cref="IResult"/>.
+    /// Maps a non-generic <see cref="Result"/> to a Minimal API <see cref="HttpIResult"/>.
     /// On success returns 204 No Content.
     /// </summary>
+    /// <param name="result">The result to map.</param>
     public static HttpIResult ToHttpResult(this Result result)
+        => result.ToHttpResult(ResultHttpOptions.Default);
+
+    /// <summary>
+    /// Maps a non-generic <see cref="Result"/> to a Minimal API <see cref="HttpIResult"/> using the given options.
+    /// On success returns 204 No Content.
+    /// </summary>
+    /// <param name="result">The result to map.</param>
+    /// <param name="options">Rendering options; see <see cref="ResultHttpOptions"/>.</param>
+    public static HttpIResult ToHttpResult(this Result result, ResultHttpOptions options)
     {
+        ArgumentNullException.ThrowIfNull(options);
+
         if (result.IsSuccess)
             return Results.NoContent();
 
-        return result.ErrorType switch
-        {
-            ErrorType.Validation => Results.Problem(result.Error, statusCode: 400),
-            ErrorType.NotFound => Results.NotFound(BuildProblemDetails(404, "Not Found", result.Error)),
-            ErrorType.Conflict => Results.Conflict(BuildProblemDetails(409, "Conflict", result.Error)),
-            ErrorType.Unauthorized => Results.Unauthorized(),
-            ErrorType.Forbidden => Results.StatusCode(403),
-            _ => Results.Problem(result.Error, statusCode: 500)
-        };
+        return Results.Problem(BuildFailureProblem(result.ErrorType, result.Error, options));
     }
 
     // -----------------------------------------------------------------------
@@ -145,7 +171,36 @@ public static class ResultExtensions
             return Results.ValidationProblem(errors);
         }
 
-        return Results.Problem(error, statusCode: 400);
+        return Results.Problem(BuildProblemDetails(400, "Validation Failed", error));
+    }
+
+    private static IActionResult ToFailureActionResult(ErrorType errorType, string? error, ResultHttpOptions options)
+    {
+        var problem = BuildFailureProblem(errorType, error, options);
+        return problem.Status switch
+        {
+            400 => new BadRequestObjectResult(problem),
+            404 => new NotFoundObjectResult(problem),
+            409 => new ConflictObjectResult(problem),
+            401 => new UnauthorizedObjectResult(problem),
+            _ => new ObjectResult(problem) { StatusCode = problem.Status }
+        };
+    }
+
+    // Single source of truth for status/title/detail so MVC and Minimal API responses match.
+    private static ProblemDetails BuildFailureProblem(ErrorType errorType, string? error, ResultHttpOptions options)
+    {
+        switch (errorType)
+        {
+            case ErrorType.Validation: return BuildProblemDetails(400, "Validation Failed", error);
+            case ErrorType.NotFound: return BuildProblemDetails(404, "Not Found", error);
+            case ErrorType.Conflict: return BuildProblemDetails(409, "Conflict", error);
+            case ErrorType.Unauthorized: return BuildProblemDetails(401, "Unauthorized", error);
+            case ErrorType.Forbidden: return BuildProblemDetails(403, "Forbidden", error);
+            default:
+                var detail = options.ExposeErrorDetails ? error : ResultHttpOptions.GenericFailureDetail;
+                return BuildProblemDetails(500, "Internal Server Error", detail);
+        }
     }
 
     private static ProblemDetails BuildProblemDetails(int status, string title, string? detail)
