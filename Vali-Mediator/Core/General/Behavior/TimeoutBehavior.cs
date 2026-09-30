@@ -17,27 +17,43 @@ public sealed class TimeoutBehavior<TRequest, TResponse> : IPipelineBehavior<TRe
     /// <inheritdoc/>
     public async Task<TResponse> Handle(
         TRequest request,
-        Func<Task<TResponse>> next,
+        Func<CancellationToken, Task<TResponse>> next,
         CancellationToken cancellationToken)
     {
         if (request is not IHasTimeout hasTimeout)
-            return await next().ConfigureAwait(false);
+            return await next(cancellationToken).ConfigureAwait(false);
 
-        using var timeoutCts = new CancellationTokenSource(hasTimeout.Timeout);
-        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(
-            cancellationToken, timeoutCts.Token);
+        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        linkedCts.CancelAfter(hasTimeout.Timeout);
 
-        var operationTask = next();
-        var delayTask = Task.Delay(hasTimeout.Timeout, CancellationToken.None);
-
-        var completed = await Task.WhenAny(operationTask, delayTask).ConfigureAwait(false);
-
-        if (completed == delayTask && !operationTask.IsCompleted)
+        var operation = next(linkedCts.Token);
+        try
         {
-            throw new TimeoutException(
-                $"Request '{typeof(TRequest).Name}' timed out after {hasTimeout.Timeout.TotalSeconds:0.##} s.");
+            // WaitAsync keeps the timeout effective for handlers that ignore the token.
+            return await operation.WaitAsync(linkedCts.Token).ConfigureAwait(false);
         }
+        catch (Exception ex) when (!cancellationToken.IsCancellationRequested && linkedCts.IsCancellationRequested)
+        {
+            // Drivers often turn cancellation into their own exception type: it is still a timeout.
+            ObserveLateFailure(operation);
+            throw new TimeoutException(
+                $"Request '{typeof(TRequest).Name}' timed out after {hasTimeout.Timeout.TotalSeconds:0.##} s.", ex);
+        }
+        catch (OperationCanceledException)
+        {
+            ObserveLateFailure(operation);
+            throw;
+        }
+    }
 
-        return await operationTask.ConfigureAwait(false);
+    // A handler that ignores its token keeps running after we stop waiting; its later failure must not go unobserved.
+    private static void ObserveLateFailure(Task operation)
+    {
+        if (!operation.IsCompleted)
+            operation.ContinueWith(
+                static t => _ = t.Exception,
+                CancellationToken.None,
+                TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously,
+                TaskScheduler.Default);
     }
 }

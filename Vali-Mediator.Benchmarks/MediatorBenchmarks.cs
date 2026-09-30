@@ -25,8 +25,8 @@ internal class PingHandler : IRequestHandler<PingRequest, string>
 internal class NoBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
     where TRequest : IRequest<TResponse>
 {
-    public Task<TResponse> Handle(TRequest request, Func<Task<TResponse>> next, CancellationToken cancellationToken)
-        => next();
+    public Task<TResponse> Handle(TRequest request, Func<CancellationToken, Task<TResponse>> next, CancellationToken cancellationToken)
+        => next(cancellationToken);
 }
 
 internal record BenchmarkEvent : INotification;

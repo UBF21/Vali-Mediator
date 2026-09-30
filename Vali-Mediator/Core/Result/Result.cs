@@ -13,6 +13,10 @@ namespace Vali_Mediator.Core.Result;
 /// When <see cref="IsFailure"/> is <c>true</c>, <see cref="Value"/> is <c>default(T)</c>.
 /// When <see cref="IsSuccess"/> is <c>true</c>, <see cref="Error"/> and <see cref="ErrorType"/> are <c>null</c>/<see cref="ErrorType.None"/>.
 /// </para>
+/// <para>
+/// <c>default(Result&lt;T&gt;)</c> is an uninitialized failure: <see cref="IsFailure"/> is <c>true</c>,
+/// <see cref="Error"/> is a non-null placeholder message and <see cref="ErrorType"/> is <see cref="ErrorType.Failure"/>.
+/// </para>
 /// </remarks>
 public readonly struct Result<T> : IResult
 {
@@ -20,10 +24,10 @@ public readonly struct Result<T> : IResult
     public T? Value { get; }
 
     /// <summary>The human-readable error description. Only valid when <see cref="IsFailure"/> is <c>true</c>.</summary>
-    public string? Error { get; }
+    public string? Error => _error ?? (IsSuccess ? null : UninitializedMessage);
 
     /// <summary>The semantic category of the failure. <see cref="ErrorType.None"/> on success.</summary>
-    public ErrorType ErrorType { get; }
+    public ErrorType ErrorType => !IsSuccess && _error is null && _errorType == ErrorType.None ? ErrorType.Failure : _errorType;
 
     /// <summary>Indicates whether the operation succeeded.</summary>
     public bool IsSuccess { get; }
@@ -38,11 +42,15 @@ public readonly struct Result<T> : IResult
     /// </summary>
     public IReadOnlyDictionary<string, IReadOnlyList<string>>? ValidationErrors { get; }
 
+    private const string UninitializedMessage = "Result was not initialized.";
+    private readonly string? _error;
+    private readonly ErrorType _errorType;
+
     private Result(T value)
     {
         Value = value;
-        Error = null;
-        ErrorType = ErrorType.None;
+        _error = null;
+        _errorType = ErrorType.None;
         IsSuccess = true;
         ValidationErrors = null;
     }
@@ -50,17 +58,17 @@ public readonly struct Result<T> : IResult
     private Result(string error, ErrorType errorType)
     {
         Value = default;
-        Error = error;
-        ErrorType = errorType;
+        _error = error;
+        _errorType = errorType;
         IsSuccess = false;
         ValidationErrors = null;
     }
 
-    private Result(IReadOnlyDictionary<string, IReadOnlyList<string>> validationErrors)
+    private Result(IReadOnlyDictionary<string, IReadOnlyList<string>> validationErrors, ErrorType errorType)
     {
         Value = default;
-        Error = "Validation failed.";
-        ErrorType = ErrorType.Validation;
+        _error = "Validation failed.";
+        _errorType = errorType;
         IsSuccess = false;
         ValidationErrors = validationErrors;
     }
@@ -76,9 +84,14 @@ public readonly struct Result<T> : IResult
 
     /// <summary>Creates a failed result with structured validation errors (one per property).</summary>
     public static Result<T> Fail(Dictionary<string, List<string>> validationErrors, ErrorType errorType = ErrorType.Validation)
-        => new(validationErrors.ToDictionary(
-            kvp => kvp.Key,
-            kvp => (IReadOnlyList<string>)kvp.Value.AsReadOnly()));
+    {
+        if (validationErrors is null) throw new ArgumentNullException(nameof(validationErrors));
+        return new Result<T>(
+            validationErrors.ToDictionary(
+                kvp => kvp.Key,
+                kvp => (IReadOnlyList<string>)kvp.Value.AsReadOnly()),
+            errorType);
+    }
 
     /// <summary>
     /// Implicitly converts a value of type <typeparamref name="T"/> to a successful <see cref="Result{T}"/>.

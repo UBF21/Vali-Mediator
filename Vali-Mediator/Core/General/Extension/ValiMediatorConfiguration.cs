@@ -32,8 +32,9 @@ public class ValiMediatorConfiguration
         ServiceLifetime lifetime = ServiceLifetime.Scoped)
     {
         if (assembly is null) throw new ArgumentNullException(nameof(assembly));
-        if (_assemblies.TrueForAll(a => a.Assembly != assembly))
-            _assemblies.Add((assembly, lifetime));
+        var index = _assemblies.FindIndex(a => a.Assembly == assembly);
+        if (index < 0) _assemblies.Add((assembly, lifetime));
+        else _assemblies[index] = (assembly, lifetime); // registering the same assembly again: the last lifetime wins
         return this;
     }
 
@@ -45,13 +46,19 @@ public class ValiMediatorConfiguration
     /// Open-generic behavior interface: <c>typeof(IPipelineBehavior&lt;,&gt;)</c>
     /// or <c>typeof(IPipelineBehavior&lt;&gt;)</c>.
     /// </param>
-    /// <param name="behaviorImplementation">The concrete open-generic implementation type.</param>
+    /// <param name="behaviorImplementation">
+    /// The behavior implementation: an open-generic type (e.g. <c>typeof(LoggingBehavior&lt;,&gt;)</c>) applies to every
+    /// request; a closed type is registered for each closed <paramref name="behaviorInterface"/> it implements.
+    /// </param>
     /// <param name="lifetime">
     /// The <see cref="ServiceLifetime"/> for this behavior. Defaults to <see cref="ServiceLifetime.Scoped"/>.
     /// Use <see cref="ServiceLifetime.Singleton"/> for stateless behaviors like caching or logging.
     /// </param>
     /// <exception cref="ArgumentNullException">Thrown when either type argument is null.</exception>
-    /// <exception cref="ArgumentException">Thrown when <paramref name="behaviorInterface"/> is not a pipeline behavior interface.</exception>
+    /// <exception cref="ArgumentException">
+    /// Thrown when <paramref name="behaviorInterface"/> is not a pipeline behavior interface, or a closed
+    /// <paramref name="behaviorImplementation"/> does not implement it.
+    /// </exception>
     public ValiMediatorConfiguration AddBehavior(
         Type behaviorInterface,
         Type behaviorImplementation,
@@ -66,6 +73,20 @@ public class ValiMediatorConfiguration
             throw new ArgumentException(
                 "Behavior interface must be IPipelineBehavior<TRequest,TResponse> or IPipelineBehavior<TRequest>.",
                 nameof(behaviorInterface));
+
+        if (behaviorInterface.IsGenericTypeDefinition && !behaviorImplementation.IsGenericTypeDefinition)
+        {
+            var closed = behaviorImplementation.GetInterfaces()
+                .Where(i => i.IsGenericType && i.GetGenericTypeDefinition() == behaviorInterface)
+                .ToList();
+            if (closed.Count == 0)
+                throw new ArgumentException(
+                    $"{behaviorImplementation.Name} does not implement {behaviorInterface.Name}.",
+                    nameof(behaviorImplementation));
+            foreach (var serviceType in closed)
+                _behaviors.Add((serviceType, behaviorImplementation, lifetime));
+            return this;
+        }
 
         _behaviors.Add((behaviorInterface, behaviorImplementation, lifetime));
         return this;
@@ -182,27 +203,51 @@ public class ValiMediatorConfiguration
         => RegisterServicesFromAssembly(typeof(T).Assembly, lifetime);
 
     /// <summary>
-    /// Adds an open-generic request pipeline behavior (for <see cref="Vali_Mediator.Core.General.Behavior.IPipelineBehavior{TRequest,TResponse}"/>).
-    /// The implementation must be an open-generic type (e.g. <c>typeof(LoggingBehavior&lt;,&gt;)</c>).
+    /// Adds a request pipeline behavior (for <see cref="Vali_Mediator.Core.General.Behavior.IPipelineBehavior{TRequest,TResponse}"/>).
+    /// <typeparamref name="TImplementation"/> is a closed type implementing the interface (e.g. <c>LoggingBehavior&lt;MyRequest, MyResponse&gt;</c>).
+    /// For an open-generic behavior use <see cref="AddRequestBehavior(Type, ServiceLifetime)"/> with <c>typeof(LoggingBehavior&lt;,&gt;)</c>.
     /// </summary>
-    /// <typeparam name="TImplementation">The open-generic behavior implementation type.</typeparam>
+    /// <typeparam name="TImplementation">The closed behavior implementation type.</typeparam>
     /// <param name="lifetime">The <see cref="ServiceLifetime"/>. Defaults to <see cref="ServiceLifetime.Scoped"/>.</param>
     public ValiMediatorConfiguration AddRequestBehavior<TImplementation>(
         ServiceLifetime lifetime = ServiceLifetime.Scoped)
         where TImplementation : class
-        => AddBehavior(typeof(IPipelineBehavior<,>), typeof(TImplementation), lifetime);
+        => AddRequestBehavior(typeof(TImplementation), lifetime);
 
     /// <summary>
-    /// Adds an open-generic dispatch pipeline behavior (for <see cref="Vali_Mediator.Core.General.Behavior.IPipelineBehavior{TRequest}"/>
-    /// used with <c>INotification</c> and <c>IFireAndForget</c>).
-    /// The implementation must be an open-generic type (e.g. <c>typeof(LoggingBehavior&lt;&gt;)</c>).
+    /// Adds a request pipeline behavior from a closed or open-generic type
+    /// (e.g. <c>typeof(LoggingBehavior&lt;,&gt;)</c>). First registered = outermost.
     /// </summary>
-    /// <typeparam name="TImplementation">The open-generic behavior implementation type.</typeparam>
+    /// <param name="behaviorType">Closed or open-generic implementation type.</param>
+    /// <param name="lifetime">The <see cref="ServiceLifetime"/>. Defaults to <see cref="ServiceLifetime.Scoped"/>.</param>
+    public ValiMediatorConfiguration AddRequestBehavior(
+        Type behaviorType,
+        ServiceLifetime lifetime = ServiceLifetime.Scoped)
+        => AddBehavior(typeof(IPipelineBehavior<,>), behaviorType, lifetime);
+
+    /// <summary>
+    /// Adds a dispatch pipeline behavior (for <see cref="Vali_Mediator.Core.General.Behavior.IPipelineBehavior{TRequest}"/>
+    /// used with <c>INotification</c> and <c>IFireAndForget</c>).
+    /// <typeparamref name="TImplementation"/> is a closed type implementing the interface (e.g. <c>LoggingBehavior&lt;MyNotification&gt;</c>).
+    /// For an open-generic behavior use <see cref="AddDispatchBehavior(Type, ServiceLifetime)"/> with <c>typeof(LoggingBehavior&lt;&gt;)</c>.
+    /// </summary>
+    /// <typeparam name="TImplementation">The closed behavior implementation type.</typeparam>
     /// <param name="lifetime">The <see cref="ServiceLifetime"/>. Defaults to <see cref="ServiceLifetime.Scoped"/>.</param>
     public ValiMediatorConfiguration AddDispatchBehavior<TImplementation>(
         ServiceLifetime lifetime = ServiceLifetime.Scoped)
         where TImplementation : class
-        => AddBehavior(typeof(IPipelineBehavior<>), typeof(TImplementation), lifetime);
+        => AddDispatchBehavior(typeof(TImplementation), lifetime);
+
+    /// <summary>
+    /// Adds a dispatch pipeline behavior from a closed or open-generic type
+    /// (e.g. <c>typeof(LoggingBehavior&lt;&gt;)</c>). First registered = outermost.
+    /// </summary>
+    /// <param name="behaviorType">Closed or open-generic implementation type.</param>
+    /// <param name="lifetime">The <see cref="ServiceLifetime"/>. Defaults to <see cref="ServiceLifetime.Scoped"/>.</param>
+    public ValiMediatorConfiguration AddDispatchBehavior(
+        Type behaviorType,
+        ServiceLifetime lifetime = ServiceLifetime.Scoped)
+        => AddBehavior(typeof(IPipelineBehavior<>), behaviorType, lifetime);
 
     /// <summary>
     /// Registers the built-in <see cref="Vali_Mediator.Core.General.Behavior.TimeoutBehavior{TRequest,TResponse}"/>
@@ -214,6 +259,21 @@ public class ValiMediatorConfiguration
             typeof(IPipelineBehavior<,>),
             typeof(Vali_Mediator.Core.General.Behavior.TimeoutBehavior<,>),
             lifetime);
+
+    private int? _sendAllMaxDegreeOfParallelism;
+
+    /// <summary>
+    /// Default limit of requests in flight for <c>SendAll(requests)</c> when no explicit limit is passed.
+    /// <c>null</c> (default) starts all requests at once. Must be at least 1 when set.
+    /// </summary>
+    /// <exception cref="ArgumentOutOfRangeException">The value is less than 1.</exception>
+    public int? SendAllMaxDegreeOfParallelism
+    {
+        get => _sendAllMaxDegreeOfParallelism;
+        set => _sendAllMaxDegreeOfParallelism = value is null || value >= 1
+            ? value
+            : throw new ArgumentOutOfRangeException(nameof(SendAllMaxDegreeOfParallelism), value, "Must be null or at least 1.");
+    }
 
     internal IReadOnlyList<(Assembly Assembly, ServiceLifetime Lifetime)> GetAssemblies() => _assemblies;
     internal IReadOnlyList<(Type ServiceType, Type ImplementationType, ServiceLifetime Lifetime)> GetBehaviors() => _behaviors;

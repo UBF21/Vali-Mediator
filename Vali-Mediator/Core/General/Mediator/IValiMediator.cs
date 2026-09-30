@@ -80,12 +80,59 @@ public interface IValiMediator
     /// Each request runs in its own pipeline. Exceptions from individual requests are
     /// propagated as an <see cref="AggregateException"/> if any fail.
     /// </summary>
+    /// <remarks>
+    /// All requests are started at once and resolve their handlers from the same <see cref="IServiceProvider"/>,
+    /// so scoped services that are not thread-safe (for example an EF Core <c>DbContext</c>) are shared across
+    /// concurrent handlers. Use a loop of <c>Send</c> calls instead when handlers depend on such services.
+    /// </remarks>
     /// <typeparam name="TResponse">The expected response type for every request.</typeparam>
     /// <param name="requests">The requests to dispatch in parallel.</param>
     /// <param name="cancellationToken">A token shared across all requests.</param>
     /// <returns>An array of responses in the same order as <paramref name="requests"/>.</returns>
     Task<TResponse[]> SendAll<TResponse>(IEnumerable<IRequest<TResponse>> requests,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Dispatches multiple requests with at most <paramref name="maxDegreeOfParallelism"/> running at the same time.
+    /// Responses keep the order of <paramref name="requests"/>.
+    /// </summary>
+    /// <remarks>
+    /// Use a low limit (or 1) when handlers depend on scoped services that are not thread-safe,
+    /// such as an EF Core <c>DbContext</c>: every handler still resolves from the same <see cref="IServiceProvider"/>.
+    /// Provided as a default interface member so existing <see cref="IValiMediator"/> implementations keep compiling.
+    /// </remarks>
+    /// <typeparam name="TResponse">The expected response type for every request.</typeparam>
+    /// <param name="requests">The requests to dispatch.</param>
+    /// <param name="maxDegreeOfParallelism">Maximum number of requests in flight; must be at least 1.</param>
+    /// <param name="cancellationToken">A token shared across all requests.</param>
+    /// <returns>An array of responses in the same order as <paramref name="requests"/>.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="requests"/> is <c>null</c>.</exception>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="maxDegreeOfParallelism"/> is less than 1.</exception>
+    async Task<TResponse[]> SendAll<TResponse>(IEnumerable<IRequest<TResponse>> requests,
+        int maxDegreeOfParallelism, CancellationToken cancellationToken = default)
+    {
+        if (requests is null) throw new ArgumentNullException(nameof(requests));
+        if (maxDegreeOfParallelism < 1) throw new ArgumentOutOfRangeException(nameof(maxDegreeOfParallelism));
+
+        var list = requests as IReadOnlyList<IRequest<TResponse>> ?? requests.ToList();
+        var results = new TResponse[list.Count];
+        using var gate = new SemaphoreSlim(maxDegreeOfParallelism);
+
+        await Task.WhenAll(list.Select(async (request, index) =>
+        {
+            await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                results[index] = await Send(request, cancellationToken).ConfigureAwait(false);
+            }
+            finally
+            {
+                gate.Release();
+            }
+        })).ConfigureAwait(false);
+
+        return results;
+    }
 
     /// <summary>
     /// Dispatches a streaming request and returns an asynchronous sequence of results.

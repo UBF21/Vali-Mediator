@@ -11,10 +11,11 @@ namespace Vali_Mediator.Core.Result;
 public readonly struct Result : IResult, IEquatable<Result>
 {
     /// <summary>The human-readable error description. Only valid when <see cref="IsFailure"/> is true.</summary>
-    public string? Error { get; }
+    public string? Error => _error ?? (IsSuccess ? null : UninitializedMessage);
 
     /// <summary>The semantic category of the failure. <see cref="ErrorType.None"/> on success.</summary>
-    public ErrorType ErrorType { get; }
+    /// <remarks><c>default(Result)</c> is an uninitialized failure with <see cref="ErrorType.Failure"/> and a placeholder <see cref="Error"/>.</remarks>
+    public ErrorType ErrorType => !IsSuccess && _error is null && _errorType == ErrorType.None ? ErrorType.Failure : _errorType;
 
     /// <summary>Indicates whether the operation succeeded.</summary>
     public bool IsSuccess { get; }
@@ -22,11 +23,15 @@ public readonly struct Result : IResult, IEquatable<Result>
     /// <summary>Indicates whether the operation failed.</summary>
     public bool IsFailure => !IsSuccess;
 
+    private const string UninitializedMessage = "Result was not initialized.";
+    private readonly string? _error;
+    private readonly ErrorType _errorType;
+
     private Result(bool isSuccess, string? error, ErrorType errorType)
     {
         IsSuccess = isSuccess;
-        Error = error;
-        ErrorType = errorType;
+        _error = error;
+        _errorType = errorType;
     }
 
     /// <summary>Creates a successful result.</summary>

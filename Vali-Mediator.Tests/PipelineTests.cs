@@ -50,10 +50,10 @@ public class PipelineTests
 
         public TrackingBehavior(ExecutionLog log, string name) { _log = log; _name = name; }
 
-        public async Task<TResponse> Handle(TRequest request, Func<Task<TResponse>> next, CancellationToken cancellationToken)
+        public async Task<TResponse> Handle(TRequest request, Func<CancellationToken, Task<TResponse>> next, CancellationToken cancellationToken)
         {
             _log.Entries.Add($"before:{_name}");
-            var r = await next();
+            var r = await next(cancellationToken);
             _log.Entries.Add($"after:{_name}");
             return r;
         }
@@ -71,10 +71,10 @@ public class PipelineTests
         private readonly ExecutionLog _log;
         public OuterBehavior(ExecutionLog log) => _log = log;
 
-        public async Task<TRes> Handle(TReq request, Func<Task<TRes>> next, CancellationToken cancellationToken)
+        public async Task<TRes> Handle(TReq request, Func<CancellationToken, Task<TRes>> next, CancellationToken cancellationToken)
         {
             _log.Entries.Add("outer-before");
-            var r = await next();
+            var r = await next(cancellationToken);
             _log.Entries.Add("outer-after");
             return r;
         }
@@ -86,10 +86,10 @@ public class PipelineTests
         private readonly ExecutionLog _log;
         public InnerBehavior(ExecutionLog log) => _log = log;
 
-        public async Task<TRes> Handle(TReq request, Func<Task<TRes>> next, CancellationToken cancellationToken)
+        public async Task<TRes> Handle(TReq request, Func<CancellationToken, Task<TRes>> next, CancellationToken cancellationToken)
         {
             _log.Entries.Add("inner-before");
-            var r = await next();
+            var r = await next(cancellationToken);
             _log.Entries.Add("inner-after");
             return r;
         }

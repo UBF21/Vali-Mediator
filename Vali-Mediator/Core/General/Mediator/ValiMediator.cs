@@ -1,10 +1,8 @@
+using System.Runtime.ExceptionServices;
 using Microsoft.Extensions.DependencyInjection;
 using Vali_Mediator.Core.FireAndForget;
-using Vali_Mediator.Core.General.Behavior;
-using Vali_Mediator.Core.General.Cache;
 using Vali_Mediator.Core.General.Exceptions;
 using Vali_Mediator.Core.Notification;
-using Vali_Mediator.Core.Processors;
 using Vali_Mediator.Core.Request;
 using Vali_Mediator.Core.Streaming;
 
@@ -31,11 +29,8 @@ public class ValiMediator : IValiMediator
         if (request is null) throw new ArgumentNullException(nameof(request));
 
         var requestType = request.GetType();
-        var handlerType = typeof(IRequestHandler<,>).MakeGenericType(requestType, typeof(TResponse));
-        var handler = _serviceProvider.GetService(handlerType)
-                      ?? throw new HandlerNotFoundException(requestType);
-
-        return ExecuteRequestPipeline(request, handler, requestType, handlerType, cancellationToken);
+        return RequestDispatcher<TResponse>.For(requestType).SendOrNull(_serviceProvider, request, cancellationToken)
+               ?? throw new HandlerNotFoundException(requestType);
     }
 
     /// <inheritdoc/>
@@ -44,6 +39,11 @@ public class ValiMediator : IValiMediator
         CancellationToken cancellationToken = default)
     {
         if (requests is null) throw new ArgumentNullException(nameof(requests));
+
+        var limit = _serviceProvider.GetService<ValiMediatorOptions>()?.SendAllMaxDegreeOfParallelism;
+        if (limit is { } max)
+            return ((IValiMediator)this).SendAll(requests, max, cancellationToken);
+
         var tasks = requests.Select(r => Send(r, cancellationToken));
         return Task.WhenAll(tasks);
     }
@@ -54,14 +54,10 @@ public class ValiMediator : IValiMediator
     {
         if (request is null) throw new ArgumentNullException(nameof(request));
 
-        var requestType = request.GetType();
-        var handlerType = typeof(IRequestHandler<,>).MakeGenericType(requestType, typeof(TResponse));
-        var handler = _serviceProvider.GetService(handlerType);
+        var pipeline = RequestDispatcher<TResponse>.For(request.GetType())
+            .SendOrNull(_serviceProvider, request, cancellationToken);
 
-        if (handler is null) return default;
-
-        return await ExecuteRequestPipeline(request, handler, requestType, handlerType, cancellationToken)
-            .ConfigureAwait(false);
+        return pipeline is null ? default : await pipeline.ConfigureAwait(false);
     }
 
     /// <inheritdoc/>
@@ -78,84 +74,34 @@ public class ValiMediator : IValiMediator
     {
         if (notification is null) throw new ArgumentNullException(nameof(notification));
 
-        var handlers = _serviceProvider
-            .GetServices<INotificationHandler<TNotification>>()
-            .OrderByDescending(h => h.Priority)
-            .ToList();
+        var plan = new NotificationPlan();
+        NotificationDispatch.Collect(_serviceProvider, notification, plan, group: 0);
 
-        var preProcessorType = typeof(IPreProcessor<>).MakeGenericType(typeof(TNotification));
-        var preProcessors = _serviceProvider.GetServices(preProcessorType).ToList();
+        // Handlers registered for the runtime type run too (MS.DI does not resolve by variance).
+        var runtimeType = notification.GetType();
+        if (runtimeType != typeof(TNotification))
+            NotificationDispatch.CollectRuntime(runtimeType, _serviceProvider, notification, plan);
 
-        var behaviorType = typeof(IPipelineBehavior<>).MakeGenericType(typeof(TNotification));
-        var behaviors = _serviceProvider.GetServices(behaviorType).ToList();
+        foreach (var pre in plan.Pre)
+            await pre(cancellationToken).ConfigureAwait(false);
 
-        var postProcessorType = typeof(IPostProcessor<>).MakeGenericType(typeof(TNotification));
-        var postProcessors = _serviceProvider.GetServices(postProcessorType).ToList();
-
-        var preProcessorMethod = ReflectionCache.GetMethod(preProcessorType, "Process");
-        foreach (var preProcessor in preProcessors)
-            await ((Task)preProcessorMethod.Invoke(preProcessor, new object[] { notification, cancellationToken })!)
-                .ConfigureAwait(false);
-
-        if (strategy == PublishStrategy.Parallel)
+        var entries = plan.Entries.OrderByDescending(e => e.Priority).ToList();
+        switch (strategy)
         {
-            await Task.WhenAll(handlers.Select(h =>
-                    ExecuteNotificationHandler(h, notification, behaviors, cancellationToken)))
-                .ConfigureAwait(false);
-        }
-        else if (strategy == PublishStrategy.ResilientParallel)
-        {
-            var dlq = _serviceProvider.GetService<IDeadLetterQueue>();
-
-            var handlerResults = await Task.WhenAll(handlers.Select(async h =>
-            {
-                try
-                {
-                    await ExecuteNotificationHandler(h, notification, behaviors, cancellationToken)
-                        .ConfigureAwait(false);
-                    return (Handler: (object)h, Exception: (Exception?)null);
-                }
-                catch (Exception ex)
-                {
-                    return (Handler: (object)h, Exception: ex);
-                }
-            })).ConfigureAwait(false);
-
-            var failures = handlerResults.Where(r => r.Exception is not null).ToList();
-
-            if (dlq != null && failures.Count > 0)
-            {
-                foreach (var failure in failures)
-                {
-                    var entry = new DeadLetterEntry
-                    {
-                        NotificationTypeName = typeof(TNotification).FullName ?? typeof(TNotification).Name,
-                        HandlerTypeName = failure.Handler.GetType().FullName ?? failure.Handler.GetType().Name,
-                        Exception = failure.Exception!,
-                        FailedAt = DateTimeOffset.UtcNow,
-                        Notification = notification
-                    };
-                    await dlq.EnqueueAsync(entry, cancellationToken).ConfigureAwait(false);
-                }
-            }
-            else
-            {
-                var exceptions = failures.Select(r => r.Exception!).ToList();
-                if (exceptions.Count == 1) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(exceptions[0]).Throw();
-                if (exceptions.Count > 1) throw new AggregateException("One or more notification handlers failed.", exceptions);
-            }
-        }
-        else
-        {
-            foreach (var handler in handlers)
-                await ExecuteNotificationHandler(handler, notification, behaviors, cancellationToken)
-                    .ConfigureAwait(false);
+            case PublishStrategy.Parallel:
+                await Task.WhenAll(entries.Select(e => e.Run(cancellationToken))).ConfigureAwait(false);
+                break;
+            case PublishStrategy.ResilientParallel:
+                await PublishResilientParallel(entries, notification, cancellationToken).ConfigureAwait(false);
+                break;
+            default:
+                foreach (var entry in entries)
+                    await entry.Run(cancellationToken).ConfigureAwait(false);
+                break;
         }
 
-        var postProcessorMethod = ReflectionCache.GetMethod(postProcessorType, "Process");
-        foreach (var postProcessor in postProcessors)
-            await ((Task)postProcessorMethod.Invoke(postProcessor, new object[] { notification, cancellationToken })!)
-                .ConfigureAwait(false);
+        foreach (var post in plan.Post)
+            await post(cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc/>
@@ -164,11 +110,8 @@ public class ValiMediator : IValiMediator
         if (fireAndForget is null) throw new ArgumentNullException(nameof(fireAndForget));
 
         var commandType = fireAndForget.GetType();
-        var handlerType = typeof(IFireAndForgetHandler<>).MakeGenericType(commandType);
-        var handler = _serviceProvider.GetService(handlerType)
-                      ?? throw new HandlerNotFoundException(commandType);
-
-        return ExecuteFireAndForgetPipeline(fireAndForget, handler, commandType, handlerType, cancellationToken);
+        return FireAndForgetDispatcher.For(commandType).SendOrNull(_serviceProvider, fireAndForget, cancellationToken)
+               ?? throw new HandlerNotFoundException(commandType);
     }
 
     /// <inheritdoc/>
@@ -178,122 +121,56 @@ public class ValiMediator : IValiMediator
         if (request is null) throw new ArgumentNullException(nameof(request));
 
         var requestType = request.GetType();
-        var handlerType = typeof(IStreamRequestHandler<,>).MakeGenericType(requestType, typeof(TResponse));
-        var handler = _serviceProvider.GetService(handlerType)
-                      ?? throw new HandlerNotFoundException(requestType);
-
-        var handlerMethod = ReflectionCache.GetMethod(handlerType, "Handle");
-        return (IAsyncEnumerable<TResponse>)handlerMethod.Invoke(handler, new object[] { request, cancellationToken })!;
+        return StreamDispatcher<TResponse>.For(requestType).CreateOrNull(_serviceProvider, request, cancellationToken)
+               ?? throw new HandlerNotFoundException(requestType);
     }
 
-    // -------------------------------------------------------------------------
-    // Private pipeline helpers
-    // -------------------------------------------------------------------------
-
-    private async Task<TResponse> ExecuteRequestPipeline<TResponse>(
-        IRequest<TResponse> request,
-        object handler,
-        Type requestType,
-        Type handlerType,
+    private async Task PublishResilientParallel(
+        List<NotificationEntry> entries,
+        INotification notification,
         CancellationToken cancellationToken)
     {
-        var preProcessorType = typeof(IPreProcessor<,>).MakeGenericType(requestType, typeof(TResponse));
-        var preProcessors = _serviceProvider.GetServices(preProcessorType).ToList();
+        var dlq = _serviceProvider.GetService<IDeadLetterQueue>();
 
-        var behaviorType = typeof(IPipelineBehavior<,>).MakeGenericType(requestType, typeof(TResponse));
-        var behaviors = _serviceProvider.GetServices(behaviorType).ToList();
-
-        var postProcessorType = typeof(IPostProcessor<,>).MakeGenericType(requestType, typeof(TResponse));
-        var postProcessors = _serviceProvider.GetServices(postProcessorType).ToList();
-
-        var preProcessorMethod = ReflectionCache.GetMethod(preProcessorType, "Process");
-        foreach (var preProcessor in preProcessors)
-            await ((Task)preProcessorMethod.Invoke(preProcessor, new object[] { request, cancellationToken })!)
-                .ConfigureAwait(false);
-
-        var handlerMethod = ReflectionCache.GetMethod(handlerType, "Handle");
-        var behaviorMethod = ReflectionCache.GetMethod(behaviorType, "Handle");
-
-        Func<Task<TResponse>> pipeline = () =>
-            (Task<TResponse>)handlerMethod.Invoke(handler, new object[] { request, cancellationToken })!;
-
-        foreach (var behavior in Enumerable.Reverse(behaviors))
+        var handlerResults = await Task.WhenAll(entries.Select(async entry =>
         {
-            var next = pipeline;
-            pipeline = () => (Task<TResponse>)behaviorMethod.Invoke(behavior, new object[] { request, next, cancellationToken })!;
+            try
+            {
+                await entry.Run(cancellationToken).ConfigureAwait(false);
+                return (entry.Handler, Exception: (Exception?)null);
+            }
+            catch (Exception ex)
+            {
+                return (entry.Handler, Exception: ex);
+            }
+        })).ConfigureAwait(false);
+
+        var failures = handlerResults.Where(r => r.Exception is not null).Select(r => (r.Handler, Exception: r.Exception!)).ToList();
+
+        if (dlq != null && failures.Count > 0)
+        {
+            foreach (var (handler, exception) in failures)
+                await dlq.EnqueueAsync(CreateDeadLetter(handler, exception, notification), cancellationToken)
+                    .ConfigureAwait(false);
+            return;
         }
 
-        var response = await pipeline().ConfigureAwait(false);
-
-        var postProcessorMethod = ReflectionCache.GetMethod(postProcessorType, "Process");
-        foreach (var postProcessor in postProcessors)
-            await ((Task)postProcessorMethod.Invoke(postProcessor, new object?[] { request, response, cancellationToken })!)
-                .ConfigureAwait(false);
-
-        return response;
+        var exceptions = failures.Select(f => f.Exception).ToList();
+        if (exceptions.Count == 1) ExceptionDispatchInfo.Capture(exceptions[0]).Throw();
+        if (exceptions.Count > 1) throw new AggregateException("One or more notification handlers failed.", exceptions);
     }
 
-    private static Task ExecuteNotificationHandler<TNotification>(
-        INotificationHandler<TNotification> handler,
-        TNotification notification,
-        List<object?> behaviors,
-        CancellationToken cancellationToken)
-        where TNotification : INotification
+    private static DeadLetterEntry CreateDeadLetter(object handler, Exception exception, INotification notification)
     {
-        // Respect INotificationFilter — skip handler silently when ShouldHandle returns false
-        if (handler is INotificationFilter<TNotification> filter && !filter.ShouldHandle(notification))
-            return Task.CompletedTask;
-
-        Func<Task> pipeline = () => handler.Handle(notification, cancellationToken);
-
-        foreach (var behavior in Enumerable.Reverse(behaviors))
+        var notificationType = notification.GetType();
+        var handlerType = handler.GetType();
+        return new DeadLetterEntry
         {
-            var next = pipeline;
-            var typedBehavior = (IPipelineBehavior<TNotification>)behavior!;
-            pipeline = () => typedBehavior.Handle(notification, next, cancellationToken);
-        }
-
-        return pipeline();
-    }
-
-    private async Task ExecuteFireAndForgetPipeline(
-        IFireAndForget fireAndForget,
-        object handler,
-        Type commandType,
-        Type handlerType,
-        CancellationToken cancellationToken)
-    {
-        var preProcessorType = typeof(IPreProcessor<>).MakeGenericType(commandType);
-        var preProcessors = _serviceProvider.GetServices(preProcessorType).ToList();
-
-        var behaviorType = typeof(IPipelineBehavior<>).MakeGenericType(commandType);
-        var behaviors = _serviceProvider.GetServices(behaviorType).ToList();
-
-        var postProcessorType = typeof(IPostProcessor<>).MakeGenericType(commandType);
-        var postProcessors = _serviceProvider.GetServices(postProcessorType).ToList();
-
-        var preProcessorMethod = ReflectionCache.GetMethod(preProcessorType, "Process");
-        foreach (var preProcessor in preProcessors)
-            await ((Task)preProcessorMethod.Invoke(preProcessor, new object[] { fireAndForget, cancellationToken })!)
-                .ConfigureAwait(false);
-
-        var handlerMethod = ReflectionCache.GetMethod(handlerType, "Handle");
-        var behaviorMethod = ReflectionCache.GetMethod(behaviorType, "Handle");
-
-        Func<Task> pipeline = () =>
-            (Task)handlerMethod.Invoke(handler, new object[] { fireAndForget, cancellationToken })!;
-
-        foreach (var behavior in Enumerable.Reverse(behaviors))
-        {
-            var next = pipeline;
-            pipeline = () => (Task)behaviorMethod.Invoke(behavior, new object[] { fireAndForget, next, cancellationToken })!;
-        }
-
-        await pipeline().ConfigureAwait(false);
-
-        var postProcessorMethod = ReflectionCache.GetMethod(postProcessorType, "Process");
-        foreach (var postProcessor in postProcessors)
-            await ((Task)postProcessorMethod.Invoke(postProcessor, new object[] { fireAndForget, cancellationToken })!)
-                .ConfigureAwait(false);
+            NotificationTypeName = notificationType.FullName ?? notificationType.Name,
+            HandlerTypeName = handlerType.FullName ?? handlerType.Name,
+            Exception = exception,
+            FailedAt = DateTimeOffset.UtcNow,
+            Notification = notification
+        };
     }
 }

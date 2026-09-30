@@ -26,10 +26,10 @@ public interface IPipelineBehavior<in TRequest, TResponse> where TRequest : IReq
     /// Handles the request by performing additional processing before or after invoking the next behavior or handler in the pipeline.
     /// </summary>
     /// <param name="request">The request object to be processed.</param>
-    /// <param name="next">A delegate representing the next step in the pipeline, which could be another behavior or the final handler.</param>
+    /// <param name="next">A delegate representing the next step in the pipeline, which could be another behavior or the final handler. Pass the token the next step must observe (the received <paramref name="cancellationToken"/>, or a linked token if this behavior can cancel on its own, e.g. a timeout).</param>
     /// <param name="cancellationToken">A token to monitor for cancellation requests.</param>
     /// <returns>A task representing the asynchronous operation, containing the response of type <typeparamref name="TResponse"/>.</returns>
-    Task<TResponse> Handle(TRequest request, Func<Task<TResponse>> next, CancellationToken cancellationToken);
+    Task<TResponse> Handle(TRequest request, Func<CancellationToken, Task<TResponse>> next, CancellationToken cancellationToken);
 }
 
 /// <summary>
@@ -52,7 +52,7 @@ public interface IPipelineBehavior<in TRequest> where TRequest : IDispatch
     /// The request instance to process, which implements <see cref="IDispatch"/>.
     /// </param>
     /// <param name="next">
-    /// A delegate representing the next step in the pipeline. Invoking this delegate continues the execution flow.
+    /// A delegate representing the next step in the pipeline. Invoking this delegate continues the execution flow; pass the token the next step must observe.
     /// </param>
     /// <param name="cancellationToken">
     /// A <see cref="CancellationToken"/> that can be used to cancel the pipeline operation.
@@ -64,5 +64,5 @@ public interface IPipelineBehavior<in TRequest> where TRequest : IDispatch
     /// Implementations should call <paramref name="next"/> to proceed with the pipeline, unless the behavior intentionally
     /// terminates the flow (e.g., due to validation failure). This method can perform actions before and/or after calling <paramref name="next"/>.
     /// </remarks>
-    Task Handle(TRequest request, Func<Task> next, CancellationToken cancellationToken);
+    Task Handle(TRequest request, Func<CancellationToken, Task> next, CancellationToken cancellationToken);
 }
