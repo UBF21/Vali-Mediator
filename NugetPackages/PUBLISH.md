@@ -1,127 +1,43 @@
-# NuGet Package Publication Guide
+# NuGet publication guide — release 3.0
 
-## Packages v1.1.0
+Packages: `Vali-Mediator` **3.0.0** (core) and `Vali-Mediator.AspNetCore|Caching|Idempotency|Observability|Resilience` **2.0.0**.
 
-All extension packages for Vali-Mediator have been updated to v1.1.0 and are ready for publication.
+## Order (mandatory)
 
-### Package List
+1. Publish the core `Vali-Mediator 3.0.0` first and wait until it is indexed (5–10 min).
+2. Publish the five extension packages. Their `.nuspec` depends on `Vali-Mediator >= 3.0.0`; recommend consumers the range `[3.0.0, 4.0.0)`.
 
-```
-Vali-Mediator.AspNetCore.1.1.0.nupkg          (+ .snupkg for symbols)
-Vali-Mediator.Resilience.1.1.0.nupkg          (+ .snupkg for symbols)
-Vali-Mediator.Caching.1.1.0.nupkg             (+ .snupkg for symbols)
-Vali-Mediator.Observability.1.1.0.nupkg       (+ .snupkg for symbols)
-Vali-Mediator.Idempotency.1.1.0.nupkg         (+ .snupkg for symbols)
-```
+An extension package built against core 2.x fails at run time with `MissingMethodException` on core 3.x, so never publish extensions before the core.
 
-### What's New in v1.1.0
-
-**Package structure change:**
-- All extension packages now depend on `Vali-Mediator` (v2.0.0+) via NuGet `PackageReference`
-- Previously used local `ProjectReference` — converted to independent NuGet packages
-- **Fully backward compatible** — no API changes
-
-See `CHANGELOG.md` in project root for details.
-
----
-
-## Publishing to NuGet.org
-
-### Prerequisites
-
-1. **NuGet API Key**: Get from https://www.nuget.org/account/ApiKeys
-2. **dotnet CLI**: Ensure `dotnet` is available on PATH
-
-### Option 1: Using dotnet CLI (Recommended)
+## Build the packages
 
 ```bash
-# Set API key (one time)
-dotnet nuget add source https://api.nuget.org/v3/index.json --name nuget.org --username __token__ --password <YOUR_API_KEY>
-
-# Publish individual packages
-cd NugetPackages/v1.1.0
-dotnet nuget push Vali-Mediator.AspNetCore.1.1.0.nupkg -s https://api.nuget.org/v3/index.json -k <YOUR_API_KEY>
-dotnet nuget push Vali-Mediator.Resilience.1.1.0.nupkg -s https://api.nuget.org/v3/index.json -k <YOUR_API_KEY>
-dotnet nuget push Vali-Mediator.Caching.1.1.0.nupkg -s https://api.nuget.org/v3/index.json -k <YOUR_API_KEY>
-dotnet nuget push Vali-Mediator.Observability.1.1.0.nupkg -s https://api.nuget.org/v3/index.json -k <YOUR_API_KEY>
-dotnet nuget push Vali-Mediator.Idempotency.1.1.0.nupkg -s https://api.nuget.org/v3/index.json -k <YOUR_API_KEY>
-
-# Publish symbol packages (optional but recommended)
-dotnet nuget push Vali-Mediator.AspNetCore.1.1.0.snupkg -s https://api.nuget.org/v3/index.json -k <YOUR_API_KEY>
-# ... repeat for other .snupkg files
-```
-
-### Option 2: Using Batch Script
-
-**publish.sh** (macOS/Linux):
-```bash
-#!/bin/bash
-API_KEY="<YOUR_API_KEY>"
-PACKAGES=(
-  "Vali-Mediator.AspNetCore.1.1.0"
-  "Vali-Mediator.Resilience.1.1.0"
-  "Vali-Mediator.Caching.1.1.0"
-  "Vali-Mediator.Observability.1.1.0"
-  "Vali-Mediator.Idempotency.1.1.0"
-)
-
-for pkg in "${PACKAGES[@]}"; do
-  echo "Publishing $pkg..."
-  dotnet nuget push "$pkg.nupkg" -s https://api.nuget.org/v3/index.json -k "$API_KEY"
-  dotnet nuget push "$pkg.snupkg" -s https://api.nuget.org/v3/index.json -k "$API_KEY"
+dotnet test Vali-Mediator.sln -c Release
+for p in Vali-Mediator Vali-Mediator.AspNetCore Vali-Mediator.Caching Vali-Mediator.Idempotency Vali-Mediator.Observability Vali-Mediator.Resilience; do
+  dotnet pack "$p/$p.csproj" -c Release -o ./artifacts
 done
 ```
 
-**publish.bat** (Windows):
-```batch
-@echo off
-SET API_KEY=<YOUR_API_KEY>
+The manual `Release (pack only)` GitHub workflow produces the same artifacts. It never pushes to NuGet.
 
-FOR %%P IN (
-  "Vali-Mediator.AspNetCore.1.1.0"
-  "Vali-Mediator.Resilience.1.1.0"
-  "Vali-Mediator.Caching.1.1.0"
-  "Vali-Mediator.Observability.1.1.0"
-  "Vali-Mediator.Idempotency.1.1.0"
-) DO (
-  echo Publishing %%P...
-  dotnet nuget push "%%P.nupkg" -s https://api.nuget.org/v3/index.json -k %API_KEY%
-  dotnet nuget push "%%P.snupkg" -s https://api.nuget.org/v3/index.json -k %API_KEY%
-)
+## Publish
+
+Read the API key from an environment variable; never write it in files or commit it.
+
+```bash
+dotnet nuget push "artifacts/Vali-Mediator.3.0.0.nupkg" -s https://api.nuget.org/v3/index.json -k "$NUGET_API_KEY"
+# after the core is indexed:
+dotnet nuget push "artifacts/Vali-Mediator.*.2.0.0.nupkg" -s https://api.nuget.org/v3/index.json -k "$NUGET_API_KEY"
 ```
 
-### Option 3: Web UI
+`.snupkg` symbol packages are pushed automatically alongside the `.nupkg` files.
 
-1. Visit https://www.nuget.org/packages/manage/upload
-2. Sign in with your NuGet.org account
-3. Upload `.nupkg` files one by one
-4. Symbol packages (`.snupkg`) upload separately
+## Verify
 
----
-
-## Verification
-
-After publishing, verify packages appear on NuGet.org:
-
-```
-https://www.nuget.org/packages/Vali-Mediator.AspNetCore/1.1.0
-https://www.nuget.org/packages/Vali-Mediator.Resilience/1.1.0
-https://www.nuget.org/packages/Vali-Mediator.Caching/1.1.0
-https://www.nuget.org/packages/Vali-Mediator.Observability/1.1.0
-https://www.nuget.org/packages/Vali-Mediator.Idempotency/1.1.0
-```
-
----
+Check each package page (`https://www.nuget.org/packages/<PackageId>/<version>`), and confirm in a scratch project that a fresh `dotnet add package` of an extension resolves core 3.x.
 
 ## Notes
 
-- ⚠️ **Symbol packages are optional** — `.snupkg` files enable source debugging in Visual Studio
-- 📦 **Dependencies**: All packages depend on `Vali-Mediator >= 2.0.0` (must be published first)
-- 🔑 **Keep API key secure** — never commit to git or share publicly
-- ⏳ **Processing time**: NuGet packages appear in search ~5-10 minutes after publishing
-- 🔄 **Updating**: You can only update a package if you own it or are a collaborator
-
----
-
-Generated: 2026-04-13
-Felipe Rafael Montenegro Morriberon
+- Release notes live in `CHANGELOG.md`; the migration guide is `docs/MIGRACION-3.0.md`.
+- Versions are set in each `.csproj`; shared metadata (authors, license, SourceLink, symbols) is in `Directory.Build.props`.
+- API-compat validation against the 2.0.1 baseline was not enabled because 3.0 is intentionally breaking; enable `PackageValidationBaselineVersion` = 3.0.0 for the 3.x line once it ships.
