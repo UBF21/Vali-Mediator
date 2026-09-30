@@ -41,7 +41,7 @@ jobs:
     env:
       NUGET_SOURCE: https://api.nuget.org/v3/index.json
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: nuget-packages
           path: artifacts
