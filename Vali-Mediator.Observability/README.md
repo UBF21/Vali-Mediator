@@ -1,8 +1,8 @@
 # Vali-Mediator.Observability
 
-Zero-dependency observability integration for [Vali-Mediator](https://github.com/UBF21/Vali-Mediator) (.NET 7 / 8 / 9).
+Zero-dependency observability integration for [Vali-Mediator](https://github.com/UBF21/Vali-Mediator) (.NET 7 / 8 / 9 / 10).
 
-Provides OpenTelemetry-compatible `ActivitySource` tracing, pluggable metrics via `IMetricsCollector`, and structured per-request lifecycle hooks via `IRequestObserver` — with no OpenTelemetry SDK dependency required.
+Provides OpenTelemetry-compatible `ActivitySource` tracing, pluggable metrics via `IMetricsCollector`, and structured per-request lifecycle hooks via `IRequestObserver` — with no OpenTelemetry SDK dependency required. A failing observer never breaks the others or the request itself: every observer always runs, and their exceptions are collected into an `AggregateException` instead of interrupting the pipeline or the remaining observers.
 
 ---
 
@@ -28,6 +28,17 @@ builder.Services
     .AddObservability()                  // registers NoOpMetricsCollector (replace below)
     .AddConsoleMetrics()                 // replace with ConsoleMetricsCollector (dev only)
     .AddConsoleLoggingObserver();        // add ConsoleLoggingObserver (dev only)
+```
+
+By default, exception messages recorded on traces/logs/metrics are redacted down to the exception's
+type name so internal details are not leaked. Opt in explicitly where that's safe (for example, only in
+development):
+
+```csharp
+builder.Services.AddObservability(options =>
+{
+    options.IncludeExceptionMessage = app.Environment.IsDevelopment();
+});
 ```
 
 ---

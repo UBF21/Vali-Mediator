@@ -1,6 +1,6 @@
 # Vali-Mediator.Resilience
 
-A **zero-dependency** resilience library for .NET 7/8/9, built to complement `Vali-Mediator` — or be used entirely on its own.
+A **zero-dependency** resilience library for .NET 7/8/9/10, built to complement `Vali-Mediator` — or be used entirely on its own.
 
 No Polly. No extra frameworks. Just a clean, fluent API with production-grade policies.
 
@@ -15,8 +15,21 @@ No Polly. No extra frameworks. Just a clean, fluent API with production-grade po
 | **Timeout** | Optimistic (CancellationToken) and Pessimistic (Task.WhenAny) strategies · `OnTimeout` callback |
 | **Fallback** | Typed fallback value or async factory · conditional activation · `OnFallback` callback |
 | **Bulkhead** | Semaphore-based concurrency limiter · optional queue with configurable timeout · `OnRejected` callback |
+| **Hedge** | Launches a parallel attempt after a delay; first successful response wins, the rest are cancelled · `OnHedge` callback |
+| **Rate Limiter** | Token Bucket or Sliding Window algorithm · optional per-partition limiting (per user/IP) with bounded memory · `OnRejected` callback |
+| **Chaos** | Injects faults (exceptions, latency, bad results) at a configurable rate — for testing the other policies, not for production |
 | **Presets** | `ForExternalApi`, `ForDatabase`, `ForCritical`, `NoResilience` |
 | **Vali-Mediator** | `IResilient` + `ResilienceBehavior<TRequest,TResponse>` auto-applies policy from the request |
+
+### Execution order
+
+When several policies are combined on the same `ResiliencePolicy`, they wrap the call in this fixed order:
+
+```
+Fallback → Chaos → Rate Limiter → Retry → Timeout → Circuit Breaker → Bulkhead → Hedge → your delegate
+```
+
+Rate limiting and chaos are evaluated once per logical call (not retried); timeout applies per attempt.
 
 ---
 
@@ -110,6 +123,58 @@ var policy = ResiliencePolicy.Create("db")
             return Task.CompletedTask;
         };
     })
+    .Build();
+```
+
+### Hedge — launch a parallel attempt if the first is slow
+
+```csharp
+var policy = ResiliencePolicy.Create("catalog-read")
+    .Hedge(options =>
+    {
+        options.HedgeDelay = TimeSpan.FromMilliseconds(200); // fire a hedge if no response by then
+        options.MaxHedgedAttempts = 1;                        // one extra parallel call
+        options.OnHedge = ctx =>
+        {
+            logger.LogInformation("Hedge attempt #{Attempt} for {Key}", ctx.AttemptNumber, ctx.OperationKey);
+            return Task.CompletedTask;
+        };
+    })
+    .Build();
+
+var product = await policy.ExecuteAsync(ct => catalogClient.GetProductAsync(id, ct));
+```
+
+### Rate Limiter — global or per-partition (per user/IP)
+
+```csharp
+// Global token bucket: 10 capacity, refills 5 tokens/second
+var policy = ResiliencePolicy.Create("search-api")
+    .RateLimiter(bucketCapacity: 10, tokensPerInterval: 5)
+    .Build();
+
+// Per-user sliding window — each key gets its own independent counter
+var loginPolicy = ResiliencePolicy.Create("login")
+    .RateLimiter(options =>
+    {
+        options.Algorithm = RateLimiterAlgorithm.SlidingWindow;
+        options.PermitLimit = 5;
+        options.Window = TimeSpan.FromMinutes(1);
+        options.PartitionKeyResolver = req => ((LoginCommand)req).Email;
+    })
+    .Build();
+```
+
+### Chaos — inject faults to test the other policies (non-production)
+
+```csharp
+var policy = ResiliencePolicy.Create("payments")
+    .Chaos(injectionRate: 0.1, options => // 10% of calls
+    {
+        options.ExceptionFactory = () => new HttpRequestException("Injected by chaos testing");
+        options.OnChaosInjected = () => { logger.LogWarning("Chaos fault injected"); return Task.CompletedTask; };
+    })
+    .Retry(3)
     .Build();
 ```
 
@@ -274,6 +339,7 @@ Each unique key gets its own independent counter. User A exhausting their limit 
 |-----------|-------------|
 | `CircuitOpenException` | A request arrives while the circuit is `Open`. Contains `CircuitKey` and `RetryAfter`. |
 | `BulkheadRejectedException` | Concurrency slots and queue are both full. Contains limits. |
+| `RateLimitExceededException` | No token/slot available and the queue (if any) timed out. |
 | `TimeoutException` | Operation exceeded the configured `Timeout`. |
 
 ---

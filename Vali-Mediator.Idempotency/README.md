@@ -1,17 +1,33 @@
 # Vali-Mediator.Idempotency
 
-Idempotency pipeline integration for [Vali-Mediator](https://github.com/UBF21/Vali-Mediator) (.NET 7 / 8 / 9).
+Idempotency pipeline integration for [Vali-Mediator](https://github.com/UBF21/Vali-Mediator) (.NET 7 / 8 / 9 / 10).
 
-Prevent duplicate handler executions by caching responses keyed on a caller-supplied idempotency key.
+Prevent duplicate handler executions by caching responses keyed on a caller-supplied idempotency key —
+with per-user/tenant scoping, payload-mismatch detection, and safe coordination across multiple
+instances sharing the same store.
 
 ---
 
 ## Features
 
 - **`IIdempotent`** — marker interface your request implements to opt into idempotency.
-- **`IdempotencyBehavior<TRequest,TResponse>`** — open-generic `IPipelineBehavior` that intercepts the pipeline, serves cached responses, and prevents concurrent duplicate executions via per-key `SemaphoreSlim` locking.
-- **`IIdempotencyStore`** — pluggable persistence abstraction (find / store / remove / exists).
-- **`InMemoryIdempotencyStore`** — thread-safe `ConcurrentDictionary` implementation with auto-eviction of expired entries and a periodic cleanup sweep every 100 writes.
+- **`IdempotencyScope`** — optional scope (user, tenant, client id) so the same `IdempotencyKey` under
+  different scopes never shares a stored response. Set it to the caller's identity whenever the key is
+  client-supplied.
+- **Payload fingerprint conflict detection** — a SHA-256 fingerprint of the serialized request is stored
+  alongside the response; the same key arriving later with a *different* payload throws
+  `IdempotencyConflictException` (or returns a `Conflict` failure for `Result`/`Result<T>` responses)
+  instead of silently replaying the wrong result.
+- **Atomic cross-process reservation** — for stores where `SupportsReservation` is `true`, the key is
+  reserved before the handler runs, so two instances processing the same key at the same time never
+  both execute it: the second waits for the reservation (`ReservationWaitTimeout`) and then replays the
+  first instance's result.
+- **`IdempotencyBehavior<TRequest,TResponse>`** — open-generic `IPipelineBehavior` that intercepts the
+  pipeline, serves cached responses, and prevents concurrent duplicate executions via per-key
+  `SemaphoreSlim` locking in-process (the store reservation coordinates across processes).
+- **`IIdempotencyStore`** — pluggable persistence abstraction (find / store / remove / exists / reserve).
+- **`InMemoryIdempotencyStore`** — thread-safe `ConcurrentDictionary` implementation with auto-eviction of
+  expired entries and a periodic cleanup sweep every 100 writes.
 - **`IIdempotencySerializer`** — pluggable serialization abstraction.
 - **`JsonIdempotencySerializer`** — default implementation using `System.Text.Json` (no extra package needed).
 - Zero external dependencies beyond `Microsoft.Extensions.DependencyInjection.Abstractions` and `Vali-Mediator`.
@@ -86,6 +102,52 @@ The second call with the same `Idempotency-Key` within 24 hours returns the cach
 
 ---
 
+## Scoping keys per user/tenant
+
+Return the caller's identity from `IdempotencyScope` whenever the key comes from the client — otherwise
+two different users sending the same key value would share a response:
+
+```csharp
+public class PlaceOrderCommand : IRequest<OrderId>, IIdempotent
+{
+    public string IdempotencyKey { get; init; } = string.Empty;
+    public TimeSpan? Expiration { get; init; } = TimeSpan.FromHours(24);
+    public string? IdempotencyScope { get; init; } // e.g. the authenticated user id
+    // ... command properties
+}
+```
+
+## Handling a payload conflict
+
+If the same key arrives again with a different payload, the pipeline throws
+`IdempotencyConflictException` (map it to HTTP 409 in your error handling) — or, when the handler returns
+`Result`/`Result<T>`, the behavior returns a `Conflict` failure directly instead of throwing:
+
+```csharp
+try
+{
+    var orderId = await mediator.Send(command);
+}
+catch (IdempotencyConflictException ex)
+{
+    // ex.IdempotencyKey — same key, different request body: respond 409 Conflict
+}
+```
+
+## Configuring limits and behavior
+
+```csharp
+builder.Services.AddIdempotencyOptions(options =>
+{
+    options.MaxKeyLength = 256;                              // rejects longer keys/scopes
+    options.VerifyRequestFingerprint = true;                 // disable if requests carry volatile fields
+    options.ReservationLease = TimeSpan.FromSeconds(30);      // must exceed the handler's worst-case duration
+    options.ReservationWaitTimeout = TimeSpan.FromSeconds(30);
+});
+```
+
+---
+
 ## Custom Store
 
 Implement `IIdempotencyStore` and register it:
@@ -133,13 +195,16 @@ builder.Services.AddIdempotencySerializer<MessagePackSerializer>();
 
 | Type | Description |
 |---|---|
-| `IIdempotent` | Marker interface — implement on your `IRequest<TResponse>` |
+| `IIdempotent` | Marker interface — implement on your `IRequest<TResponse>`. Includes `IdempotencyScope` |
+| `IdempotencyOptions` | Limits and safety switches: `MaxKeyLength`, `VerifyRequestFingerprint`, `ReservationLease`, `ReservationWaitTimeout`, `ReservationPollInterval` |
 | `IdempotencyEntry` | Stored envelope: key, serialized bytes, type name, timestamps, expiry |
-| `IIdempotencyStore` | Persistence contract: `FindAsync`, `StoreAsync`, `RemoveAsync`, `ExistsAsync` |
-| `InMemoryIdempotencyStore` | Built-in thread-safe in-memory store |
+| `IIdempotencyStore` | Persistence contract: `FindAsync`, `StoreAsync`, `RemoveAsync`, `ExistsAsync`, `SupportsReservation` |
+| `InMemoryIdempotencyStore` | Built-in thread-safe in-memory store, supports reservation |
 | `IIdempotencySerializer` | Serialization contract: `Serialize<T>`, `Deserialize<T>` |
 | `JsonIdempotencySerializer` | Default `System.Text.Json` serializer |
 | `IdempotencyBehavior<TRequest,TResponse>` | Open-generic pipeline behavior |
+| `IdempotencyConflictException` | Thrown on a key reused with a different payload (non-`Result` responses) |
+| `IdempotencyInProgressException` | Thrown when another instance still holds the reservation past `ReservationWaitTimeout` |
 
 ### Extension methods
 
@@ -149,6 +214,7 @@ builder.Services.AddIdempotencySerializer<MessagePackSerializer>();
 | `services.AddInMemoryIdempotencyStore()` | `IServiceCollection` | Registers `InMemoryIdempotencyStore` + `JsonIdempotencySerializer` |
 | `services.AddIdempotencyStore<TStore>()` | `IServiceCollection` | Registers a custom `IIdempotencyStore` |
 | `services.AddIdempotencySerializer<TSerializer>()` | `IServiceCollection` | Replaces the default serializer |
+| `services.AddIdempotencyOptions(configure)` | `IServiceCollection` | Registers `IdempotencyOptions` |
 
 ---
 

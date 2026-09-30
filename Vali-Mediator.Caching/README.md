@@ -3,7 +3,9 @@
 Caching integration for the [Vali-Mediator](https://github.com/UBF21/Vali-Mediator) ecosystem.
 
 Provides a pluggable `ICacheStore` abstraction, an in-memory implementation with absolute/sliding
-expiry and group-based invalidation, and two pipeline behaviors that wire everything together.
+expiry and group-based invalidation, two pipeline behaviors that wire everything together, and
+automatic coalescing of concurrent cache misses so a stampede of identical requests only runs the
+handler once.
 
 ## Installation
 
@@ -90,11 +92,31 @@ builder.Services.AddCacheStore<RedisCacheStore>();
 
 ## In-Memory Store Options
 
+Every limit is validated (must be greater than zero) and bounds memory even when keys/groups come from
+client-controlled input — an oversized key or a group past the limit is dropped instead of accepted:
+
 ```csharp
 builder.Services.AddInMemoryCacheStore(options =>
 {
-    options.MaxEntries = 5000;
+    options.MaxEntries = 5000;               // least-recently-used entry evicted when full (default 10 000)
+    options.MaxKeyLength = 512;              // longer keys/group names are never stored (default 512)
+    options.MaxGroups = 10_000;              // distinct groups indexed at once (default 10 000)
+    options.MaxKeysPerGroup = 10_000;        // keys indexed under one group (default 10 000)
     options.CleanupInterval = TimeSpan.FromMinutes(10);
+});
+```
+
+## Coalescing Concurrent Misses
+
+When several requests ask for the same cache key at the same time and it's a miss, only the first one
+runs the handler — the rest await that same in-flight call instead of each hitting the backing store
+(and, transitively, the database). This is automatic whenever `AddCachingBehavior()` is registered; the
+only knob is how long a follower waits before giving up and running the handler itself:
+
+```csharp
+builder.Services.AddCachingOptions(options =>
+{
+    options.CoalescingWaitTimeout = TimeSpan.FromSeconds(30); // bounds the damage of a hung handler
 });
 ```
 
