@@ -5,11 +5,15 @@ namespace Vali_Mediator_Caching.Core.Abstractions;
 /// group-to-key registration.
 /// </summary>
 /// <remarks>
-/// When <see cref="CachingBehavior"/> writes a result whose request specifies a
+/// When <c>CachingBehavior</c> writes a result whose request specifies a
 /// <c>CacheGroup</c>, it checks whether the underlying <see cref="ICacheStore"/>
 /// also implements this interface and, if so, calls <see cref="RegisterKeyInGroupAsync"/>
 /// so the store can associate the key with the group for bulk invalidation via
 /// <see cref="ICacheStore.RemoveByGroupAsync"/>.
+///
+/// Registration is called after <see cref="ICacheStore.SetAsync{T}"/>. A store must ignore a
+/// registration for a key it no longer holds (it may have been evicted in between) and must
+/// never keep a key in its group index after the entry is gone.
 ///
 /// Implementors that maintain an internal group index (such as
 /// <see cref="Store.InMemoryCacheStore"/>) should implement this interface.

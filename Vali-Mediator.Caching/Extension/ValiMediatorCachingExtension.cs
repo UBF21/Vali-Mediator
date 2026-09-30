@@ -82,6 +82,24 @@ public static class ValiMediatorCachingExtension
     }
 
     /// <summary>
+    /// Registers the <see cref="CachingOptions"/> used by <see cref="CachingBehavior{TRequest,TResponse}"/>.
+    /// Without this call the defaults apply.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    /// <param name="configureOptions">Delegate to configure <see cref="CachingOptions"/>.</param>
+    public static IServiceCollection AddCachingOptions(
+        this IServiceCollection services,
+        Action<CachingOptions> configureOptions)
+    {
+        if (configureOptions is null) throw new ArgumentNullException(nameof(configureOptions));
+
+        var options = new CachingOptions();
+        configureOptions(options);
+        services.AddSingleton(options);
+        return services;
+    }
+
+    /// <summary>
     /// Registers a custom <typeparamref name="TStore"/> as the singleton <see cref="ICacheStore"/>.
     /// </summary>
     /// <typeparam name="TStore">

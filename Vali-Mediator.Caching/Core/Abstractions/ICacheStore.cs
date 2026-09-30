@@ -6,6 +6,15 @@ namespace Vali_Mediator_Caching.Core.Abstractions;
 /// <remarks>
 /// Implement this interface and register it via <c>services.AddCacheStore&lt;TStore&gt;()</c>
 /// to replace the built-in <see cref="Vali_Mediator_Caching.Core.Store.InMemoryCacheStore"/>.
+/// <para>
+/// Contract: implementations must be thread-safe; a <c>null</c> value is never cached; an entry whose
+/// stored type differs from <c>T</c> is a miss; and an oversized or invalid key must degrade to a miss
+/// (reads) or a no-op (writes) rather than throw. Group invalidation is served either by implementing
+/// <see cref="IGroupAwareCacheStore"/> (the behavior registers keys after each write) or natively by the
+/// backend (for example tag-based eviction), in which case <c>RemoveByGroupAsync</c> must honor whatever
+/// association the store made itself. Stores may hand back the same instance they were given, so cached
+/// values should be treated as immutable.
+/// </para>
 /// </remarks>
 public interface ICacheStore
 {

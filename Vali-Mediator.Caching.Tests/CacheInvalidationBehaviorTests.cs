@@ -40,7 +40,7 @@ public sealed class CacheInvalidationBehaviorTests
 
         await behavior.Handle(
             new NonInvalidatingCommand(),
-            () => Task.FromResult(Unit.Value),
+            _ => Task.FromResult(Unit.Value),
             CancellationToken.None);
 
         var (found, _) = await store.TryGetAsync<string>("key1");
@@ -66,7 +66,7 @@ public sealed class CacheInvalidationBehaviorTests
             InvalidatedGroups = new List<string>(),
         };
 
-        await behavior.Handle(command, () => Task.FromResult(Unit.Value), CancellationToken.None);
+        await behavior.Handle(command, _ => Task.FromResult(Unit.Value), CancellationToken.None);
 
         var (f1, _) = await store.TryGetAsync<string>("k1");
         var (f2, _) = await store.TryGetAsync<string>("k2");
@@ -100,7 +100,7 @@ public sealed class CacheInvalidationBehaviorTests
             InvalidatedGroups = new List<string> { "groupA" },
         };
 
-        await behavior.Handle(command, () => Task.FromResult(Unit.Value), CancellationToken.None);
+        await behavior.Handle(command, _ => Task.FromResult(Unit.Value), CancellationToken.None);
 
         var (fa1, _) = await store.TryGetAsync<string>("a1");
         var (fa2, _) = await store.TryGetAsync<string>("a2");
@@ -130,7 +130,7 @@ public sealed class CacheInvalidationBehaviorTests
             InvalidatedGroups = new List<string> { "grpB" },
         };
 
-        await behavior.Handle(command, () => Task.FromResult(Unit.Value), CancellationToken.None);
+        await behavior.Handle(command, _ => Task.FromResult(Unit.Value), CancellationToken.None);
 
         var (f1, _) = await store.TryGetAsync<string>("direct-key");
         var (f2, _) = await store.TryGetAsync<string>("grp-key");
@@ -156,7 +156,7 @@ public sealed class CacheInvalidationBehaviorTests
 
         var result = await behavior.Handle(
             command,
-            () => Task.FromResult(Unit.Value),
+            _ => Task.FromResult(Unit.Value),
             CancellationToken.None);
 
         Assert.Equal(Unit.Value, result);

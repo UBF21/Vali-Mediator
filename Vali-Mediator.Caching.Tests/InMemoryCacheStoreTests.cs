@@ -5,6 +5,15 @@ namespace Vali_Mediator_Caching.Tests;
 
 public sealed class InMemoryCacheStoreTests
 {
+    private readonly FakeTimeProvider _clock = new FakeTimeProvider();
+
+    private InMemoryCacheStore NewStore(Action<InMemoryCacheOptions>? configure = null)
+    {
+        var options = new InMemoryCacheOptions { TimeProvider = _clock };
+        configure?.Invoke(options);
+        return new InMemoryCacheStore(options);
+    }
+
     // -------------------------------------------------------------------------
     // Set / Get
     // -------------------------------------------------------------------------
@@ -12,7 +21,7 @@ public sealed class InMemoryCacheStoreTests
     [Fact]
     public async Task TryGetAsync_MissingKey_ReturnsFalse()
     {
-        var store = new InMemoryCacheStore();
+        var store = NewStore();
 
         var (found, value) = await store.TryGetAsync<string>("missing-key");
 
@@ -23,7 +32,7 @@ public sealed class InMemoryCacheStoreTests
     [Fact]
     public async Task TryGetAsync_ExistingKey_ReturnsTrueAndValue()
     {
-        var store = new InMemoryCacheStore();
+        var store = NewStore();
         await store.SetAsync("key1", "hello", null, null);
 
         var (found, value) = await store.TryGetAsync<string>("key1");
@@ -35,13 +44,22 @@ public sealed class InMemoryCacheStoreTests
     [Fact]
     public async Task TryGetAsync_AfterRemove_ReturnsFalse()
     {
-        var store = new InMemoryCacheStore();
+        var store = NewStore();
         await store.SetAsync("key1", 42, null, null);
         await store.RemoveAsync("key1");
 
         var (found, _) = await store.TryGetAsync<int>("key1");
 
         Assert.False(found);
+    }
+
+    [Fact]
+    public async Task DefaultConstructor_Works()
+    {
+        var store = new InMemoryCacheStore();
+        await store.SetAsync("k", "v", null, null);
+
+        Assert.True((await store.TryGetAsync<string>("k")).Found);
     }
 
     // -------------------------------------------------------------------------
@@ -51,8 +69,9 @@ public sealed class InMemoryCacheStoreTests
     [Fact]
     public async Task TryGetAsync_AbsoluteExpiryNotReached_ReturnsValue()
     {
-        var store = new InMemoryCacheStore();
+        var store = NewStore();
         await store.SetAsync("key1", "data", TimeSpan.FromMinutes(5), null);
+        _clock.Advance(TimeSpan.FromMinutes(4));
 
         var (found, value) = await store.TryGetAsync<string>("key1");
 
@@ -63,14 +82,9 @@ public sealed class InMemoryCacheStoreTests
     [Fact]
     public async Task TryGetAsync_AbsoluteExpiryElapsed_ReturnsFalse()
     {
-        // Use a very small expiry and simulate by setting absolute to the past
-        // We bypass the timer by using negative TimeSpan trick — instead use
-        // a store backed by a manipulatable clock. Since InMemoryCacheStore uses
-        // DateTimeOffset.UtcNow internally, we test with a tiny sleep.
-        var store = new InMemoryCacheStore();
-        await store.SetAsync("key1", "data", TimeSpan.FromMilliseconds(10), null);
-
-        await Task.Delay(50); // let the entry expire
+        var store = NewStore();
+        await store.SetAsync("key1", "data", TimeSpan.FromMinutes(5), null);
+        _clock.Advance(TimeSpan.FromMinutes(5));
 
         var (found, _) = await store.TryGetAsync<string>("key1");
 
@@ -84,31 +98,26 @@ public sealed class InMemoryCacheStoreTests
     [Fact]
     public async Task TryGetAsync_SlidingExpiry_ResetsOnAccess()
     {
-        var store = new InMemoryCacheStore();
-        // Sliding window of 100ms
-        await store.SetAsync("key1", "data", null, TimeSpan.FromMilliseconds(100));
+        var store = NewStore();
+        await store.SetAsync("key1", "data", null, TimeSpan.FromSeconds(10));
 
-        // Access at ~40ms — should still be alive
-        await Task.Delay(40);
-        var (found1, _) = await store.TryGetAsync<string>("key1");
-        Assert.True(found1);
+        _clock.Advance(TimeSpan.FromSeconds(8));
+        Assert.True((await store.TryGetAsync<string>("key1")).Found);
 
-        // Access again at ~40ms after the last read — still within window
-        await Task.Delay(40);
-        var (found2, _) = await store.TryGetAsync<string>("key1");
-        Assert.True(found2);
+        // 16s since the write but only 8s since the last read: still alive.
+        _clock.Advance(TimeSpan.FromSeconds(8));
+        Assert.True((await store.TryGetAsync<string>("key1")).Found);
     }
 
     [Fact]
     public async Task TryGetAsync_SlidingExpiry_ExpiresAfterInactivity()
     {
-        var store = new InMemoryCacheStore();
-        await store.SetAsync("key1", "data", null, TimeSpan.FromMilliseconds(30));
+        var store = NewStore();
+        await store.SetAsync("key1", "data", null, TimeSpan.FromSeconds(10));
 
-        await Task.Delay(80); // no access — should expire
+        _clock.Advance(TimeSpan.FromSeconds(10));
 
-        var (found, _) = await store.TryGetAsync<string>("key1");
-        Assert.False(found);
+        Assert.False((await store.TryGetAsync<string>("key1")).Found);
     }
 
     // -------------------------------------------------------------------------
@@ -118,7 +127,7 @@ public sealed class InMemoryCacheStoreTests
     [Fact]
     public async Task RemoveByGroupAsync_RemovesAllKeysInGroup()
     {
-        var store = new InMemoryCacheStore();
+        var store = NewStore();
         await store.SetAsync("k1", "v1", null, null);
         await store.SetAsync("k2", "v2", null, null);
         await store.SetAsync("k3", "v3", null, null);
@@ -128,19 +137,15 @@ public sealed class InMemoryCacheStoreTests
 
         await store.RemoveByGroupAsync("grp");
 
-        var (f1, _) = await store.TryGetAsync<string>("k1");
-        var (f2, _) = await store.TryGetAsync<string>("k2");
-        var (f3, _) = await store.TryGetAsync<string>("k3");
-
-        Assert.False(f1);
-        Assert.False(f2);
-        Assert.True(f3); // not in the group — still present
+        Assert.False((await store.TryGetAsync<string>("k1")).Found);
+        Assert.False((await store.TryGetAsync<string>("k2")).Found);
+        Assert.True((await store.TryGetAsync<string>("k3")).Found);
     }
 
     [Fact]
     public async Task RemoveByGroupAsync_NonExistentGroup_DoesNotThrow()
     {
-        var store = new InMemoryCacheStore();
+        var store = NewStore();
         var ex = await Record.ExceptionAsync(() => store.RemoveByGroupAsync("ghost-group"));
         Assert.Null(ex);
     }
@@ -150,23 +155,24 @@ public sealed class InMemoryCacheStoreTests
     // -------------------------------------------------------------------------
 
     [Fact]
-    public async Task SetAsync_RespectsMaxEntries()
+    public async Task SetAsync_RespectsMaxEntries_ByEvictingInsteadOfDropping()
     {
-        var store = new InMemoryCacheStore(new InMemoryCacheOptions { MaxEntries = 2 });
+        var store = NewStore(o => o.MaxEntries = 2);
         await store.SetAsync("k1", "v1", null, null);
         await store.SetAsync("k2", "v2", null, null);
-        await store.SetAsync("k3", "v3", null, null); // should be silently ignored
+        await store.SetAsync("k3", "v3", null, null);
 
-        var (f3, _) = await store.TryGetAsync<string>("k3");
-        Assert.False(f3);
+        Assert.Equal(2, store.Count);
+        Assert.False((await store.TryGetAsync<string>("k1")).Found);
+        Assert.True((await store.TryGetAsync<string>("k3")).Found);
     }
 
     [Fact]
     public async Task SetAsync_UpdateExistingKey_AllowedEvenAtCapacity()
     {
-        var store = new InMemoryCacheStore(new InMemoryCacheOptions { MaxEntries = 1 });
+        var store = NewStore(o => o.MaxEntries = 1);
         await store.SetAsync("k1", "original", null, null);
-        await store.SetAsync("k1", "updated", null, null); // update, not new entry
+        await store.SetAsync("k1", "updated", null, null);
 
         var (found, value) = await store.TryGetAsync<string>("k1");
         Assert.True(found);

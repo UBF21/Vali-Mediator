@@ -27,7 +27,7 @@ builder.Services.AddValiMediator(config =>
 builder.Services.AddInMemoryCacheStore();
 ```
 
-`AddCachingBehavior()` registra `CachingPipelineBehavior<,>` como behavior del pipeline de peticiones. `AddInMemoryCacheStore()` registra la implementación `IMemoryCache`-backed de `ICacheStore`.
+`AddCachingBehavior()` registra `CachingBehavior<,>` como behavior del pipeline de peticiones. `AddInMemoryCacheStore()` registra la store en memoria (`InMemoryCacheStore`) como `ICacheStore`.
 
 ---
 
@@ -220,7 +220,7 @@ public interface ICacheStore
 
 ### Store en Memoria
 
-El store incluido usa `IMemoryCache` internamente:
+El store incluido es un caché en proceso con lista LRU (sin `IMemoryCache`):
 
 ```csharp
 // Registro con opciones por defecto
@@ -229,8 +229,11 @@ builder.Services.AddInMemoryCacheStore();
 // Registro con opciones personalizadas
 builder.Services.AddInMemoryCacheStore(opts =>
 {
-    opts.MaxSize = 5000;                              // Número máximo de entradas
-    opts.CleanupInterval = TimeSpan.FromMinutes(5);  // Frecuencia de limpieza de entradas expiradas
+    opts.MaxEntries      = 10_000;                    // Límite estricto de entradas
+    opts.MaxKeyLength    = 512;                       // Largo máximo de clave o grupo
+    opts.MaxGroups       = 10_000;
+    opts.MaxKeysPerGroup = 10_000;
+    opts.CleanupInterval = TimeSpan.FromMinutes(5);   // Barrido de entradas expiradas
 });
 ```
 
@@ -238,8 +241,32 @@ builder.Services.AddInMemoryCacheStore(opts =>
 
 | Propiedad | Tipo | Valor por defecto | Descripción |
 |---|---|---|---|
-| `MaxSize` | `long` | `10_000` | Número máximo de entradas en la caché |
-| `CleanupInterval` | `TimeSpan` | `2 minutos` | Frecuencia del proceso de limpieza de entradas expiradas |
+| `MaxEntries` | `int` | `10_000` | Límite estricto de entradas; al llenarse se expulsa la menos usada recientemente |
+| `MaxKeyLength` | `int` | `512` | Las claves (o grupos) más largas nunca se guardan: la lectura falla y la escritura se ignora |
+| `MaxGroups` | `int` | `10_000` | Máximo de grupos distintos indexados a la vez |
+| `MaxKeysPerGroup` | `int` | `10_000` | Máximo de claves dentro de un grupo |
+| `CleanupInterval` | `TimeSpan` | `5 minutos` | Intervalo mínimo entre barridos completos de entradas expiradas (perezoso, al escribir; al leer también se eliminan las expiradas) |
+| `TimeProvider` | `TimeProvider` | `TimeProvider.System` | Reloj usado para la expiración; reemplazable en tests |
+
+Todo límite numérico debe ser mayor que cero. Si una clave no se puede indexar porque se alcanzó un límite de grupos,
+la entrada se descarta en lugar de quedar donde la invalidación por grupo no la alcanzaría.
+
+#### Fallos concurrentes (misses) y opciones del behavior
+
+Varios misses simultáneos de la misma `CacheKey` comparten una sola ejecución del handler, incluso si el resultado
+es un `Result` fallido (los fallos se comparten pero nunca se cachean). Un llamador nunca espera más de
+`CoalescingWaitTimeout`: pasado ese tiempo ejecuta el handler por su cuenta. Si el llamador en curso se cancela,
+los demás reintentan; si lanza una excepción, la observan también.
+
+```csharp
+builder.Services.AddCachingOptions(o => o.CoalescingWaitTimeout = TimeSpan.FromSeconds(10));
+```
+
+#### Notas de seguridad
+
+- Incluí el usuario o tenant (y todo lo que cambie la respuesta) en `CacheKey`: dos peticiones con la misma clave reciben la misma respuesta.
+- Las instancias cacheadas se comparten entre todos los llamadores: tratá las respuestas como inmutables.
+- Mantené acotadas las claves y los grupos; los límites existen para acotar la memoria cuando derivan de datos del cliente.
 
 ---
 
@@ -355,7 +382,7 @@ builder.Services.AddSwaggerGen();
 // Caché en memoria con opciones personalizadas
 builder.Services.AddInMemoryCacheStore(opts =>
 {
-    opts.MaxSize = 20_000;
+    opts.MaxEntries = 20_000;
     opts.CleanupInterval = TimeSpan.FromMinutes(3);
 });
 
@@ -367,7 +394,7 @@ builder.Services.AddValiMediator(config =>
     // para que sea la capa más externa del pipeline
     config.AddCachingBehavior();
 
-    config.AddRequestBehavior<LoggingBehavior<,>>(ServiceLifetime.Singleton);
+    config.AddRequestBehavior(typeof(LoggingBehavior<,>), ServiceLifetime.Singleton);
 });
 
 var app = builder.Build();
