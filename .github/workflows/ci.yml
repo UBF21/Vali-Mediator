@@ -30,11 +30,11 @@ jobs:
     name: Build (warnings as errors)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # global.json (rollForward: latestMajor) makes the newest installed SDK build every target framework;
       # the 7/8/9 runtimes are installed so tests can run on each of them.
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: |
             7.0.x
@@ -67,10 +67,10 @@ jobs:
           - tfm: net10.0
             runtime: 10.0.x
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # The runtime of the framework under test, plus SDK 10.0.x (selected by global.json) to compile every target.
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: |
             ${{ matrix.runtime }}
@@ -145,7 +145,7 @@ jobs:
 
       - name: Upload coverage reports
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-${{ matrix.os }}-${{ matrix.tfm }}
           path: TestResults/**/coverage.cobertura.xml
@@ -155,7 +155,7 @@ jobs:
       # Complete trace of this cell: console logs, binlog and .trx results. Uploaded even when tests fail.
       - name: Upload full trace
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: trace-${{ matrix.os }}-${{ matrix.tfm }}
           path: |
@@ -172,7 +172,7 @@ jobs:
     if: always()
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           pattern: trace-*
           path: trace
@@ -201,7 +201,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload the single-file trace
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: full-trace
           path: full-trace.txt
@@ -213,7 +213,7 @@ jobs:
     needs: test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           pattern: coverage-*
           path: coverage
@@ -297,9 +297,9 @@ jobs:
     env:
       VERSION_SUFFIX: ${{ inputs.version-suffix }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: |
             7.0.x
@@ -383,7 +383,7 @@ jobs:
           PY
 
       - name: Upload packages
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: nuget-packages
           path: artifacts/*
