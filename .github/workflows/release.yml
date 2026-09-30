@@ -1,0 +1,92 @@
+name: Release
+
+# Manual only. By default it runs the full CI (net7.0, net8.0, net9.0 and net10.0 on Linux and Windows) and uploads the packed
+# NuGet packages as a workflow artifact; it publishes NOTHING. Publishing needs BOTH `publish: true` and an approval of the
+# `nuget` environment (Settings > Environments > nuget > Required reviewers), and uses the NUGET_API_KEY secret of that environment.
+#
+# Publication order: the core (Vali-Mediator) first, then the extension packages, because the extensions depend on it.
+on:
+  workflow_dispatch:
+    inputs:
+      version-suffix:
+        description: Prerelease label appended to every package version, for example rc.1 (empty = versions from the csproj files)
+        type: string
+        required: false
+        default: ''
+      publish:
+        description: Publish the packages to NuGet.org after the approval of the nuget environment
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  ci:
+    name: CI (build, test on net7.0-net10.0, coverage gate, pack)
+    uses: ./.github/workflows/ci.yml
+    with:
+      version-suffix: ${{ inputs.version-suffix }}
+
+  publish:
+    name: Publish to NuGet (needs approval)
+    needs: ci
+    if: ${{ inputs.publish }}
+    runs-on: ubuntu-latest
+    environment: nuget
+    env:
+      NUGET_SOURCE: https://api.nuget.org/v3/index.json
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: nuget-packages
+          path: artifacts
+
+      - name: Every package must contain net10.0 (and net7.0, net8.0, net9.0)
+        run: |
+          for package in artifacts/*.nupkg; do
+            for tfm in net7.0 net8.0 net9.0 net10.0; do
+              unzip -l "$package" | grep -q "lib/$tfm/" || { echo "::error::$package has no lib/$tfm"; exit 1; }
+            done
+          done
+
+      - name: Push the core
+        env:
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+        run: |
+          if [ -z "$NUGET_API_KEY" ]; then
+            echo "::error::NUGET_API_KEY is not set in the nuget environment"
+            exit 1
+          fi
+          # The core is the only package whose id is followed by a version digit (Vali-Mediator.<digit>...).
+          dotnet nuget push artifacts/Vali-Mediator.[0-9]*.nupkg --source "$NUGET_SOURCE" --api-key "$NUGET_API_KEY" --skip-duplicate
+
+      - name: Wait until NuGet.org lists the core
+        run: |
+          core=$(basename artifacts/Vali-Mediator.[0-9]*.nupkg .nupkg)
+          version=$(echo "${core#Vali-Mediator.}" | tr '[:upper:]' '[:lower:]')
+          for attempt in $(seq 1 40); do
+            if curl -fsS "https://api.nuget.org/v3-flatcontainer/vali-mediator/index.json" | grep -q "\"$version\""; then
+              echo "Vali-Mediator $version is indexed"
+              exit 0
+            fi
+            echo "attempt $attempt/40: Vali-Mediator $version not indexed yet"
+            sleep 30
+          done
+          echo "::error::Vali-Mediator $version was not indexed in time; re-run this job (--skip-duplicate makes it safe)"
+          exit 1
+
+      - name: Push the extension packages
+        env:
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+        run: |
+          for package in artifacts/Vali-Mediator.*.nupkg; do
+            case "$(basename "$package")" in
+              Vali-Mediator.[0-9]*) continue ;;
+            esac
+            dotnet nuget push "$package" --source "$NUGET_SOURCE" --api-key "$NUGET_API_KEY" --skip-duplicate
+          done

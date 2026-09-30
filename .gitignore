@@ -50,3 +50,6 @@ artifacts/
 BenchmarkDotNet.Artifacts/
 *.trx
 coverage.*.xml
+
+# CI trace output written by the workflows on the runner
+/logs/
