@@ -435,15 +435,21 @@ El orden en que las políticas evalúan la petición es fijo, independientemente
 Fallback
   └─ Chaos
        └─ RateLimiter
-            └─ Timeout
-                 └─ Circuit Breaker
-                      └─ Bulkhead
-                           └─ Retry
+            └─ Retry
+                 └─ Timeout
+                      └─ Circuit Breaker
+                           └─ Bulkhead
                                 └─ Hedge
                                      └─ delegate (handler)
 ```
 
-**Lectura del orden:** Fallback es la capa más externa — captura cualquier fallo que no hayan resuelto las políticas internas. El delegate (handler real) es el núcleo de la cadena y la última capa en ejecutarse.
+**Lectura del orden:** Fallback es la capa más externa — captura cualquier fallo que no hayan resuelto las políticas internas (salvo la cancelación del llamador). El delegate (handler real) es el núcleo de la cadena y la última capa en ejecutarse.
+
+- **RateLimiter** consume un permiso por llamada lógica: sus rechazos no se reintentan ni cuentan como fallo del circuit breaker.
+- **Retry** repite toda la cadena Timeout → Circuit Breaker → Bulkhead → Hedge.
+- **Timeout** se aplica **por intento**.
+- **Circuit Breaker** abierto detiene los reintentos. La cancelación del llamador y los rechazos del bulkhead no cuentan como fallos.
+- **Bulkhead** encola hasta `MaxQueuedCalls` llamadas (esperan sin límite si `QueueTimeout` es infinito); el resto se rechaza.
 
 ---
 
@@ -463,12 +469,58 @@ builder.Services.AddValiMediator(config =>
     config.AddResilienceBehavior();
 
     // Otros behaviors se registran después
-    config.AddRequestBehavior<LoggingBehavior<,>>(ServiceLifetime.Singleton);
+    config.AddRequestBehavior(typeof(LoggingBehavior<,>), ServiceLifetime.Singleton);
 });
 
 var app = builder.Build();
 app.Run();
 ```
+
+---
+
+## Políticas con Estado, Límites y Validación
+
+**Las políticas se resuelven por request.** `ResilienceBehavior` llama a `GetPolicy(request)` en cada request. Los slots
+del bulkhead, los buckets del rate limiter y los circuit breakers viven dentro de la instancia de la política, así que
+una factory que construye una política *nueva* cada vez arranca cada request con un limitador vacío, sin avisar.
+O devuelves siempre la misma instancia, o le das un nombre fijo con `WithSharedState`:
+
+```csharp
+services.AddResiliencePolicy<LoginCommand>(req =>
+    ResiliencePolicy.Create("login")
+        .Bulkhead(maxConcurrent: 20)
+        .RateLimiter(o => { o.BucketCapacity = 100; o.TokensPerInterval = 50; })
+        .WithSharedState("login")   // bulkhead, limitador y circuit breaker se comparten por nombre
+        .Build());
+```
+
+Usa pocos nombres fijos, nunca datos del request: el número de claves distintas está limitado a 10 000 y la primera
+política que usa un nombre define sus límites.
+
+**Validación.** `Build()` lanza `ArgumentOutOfRangeException` ante opciones fuera de rango (reintentos negativos,
+timeout en cero, concurrencia cero, tasa de fallos fuera de 0–1, intervalo de reposición no positivo,
+`MaxPartitions < 1`…) en lugar de fallar más tarde en ejecución.
+
+**Rate limiter.** `TokensPerInterval = 0` desactiva la reposición y `BucketCapacity` / `PermitLimit = 0` rechazan todo.
+`MaxPartitions` (por defecto 10 000) acota las particiones vivas: las claves adicionales comparten un limitador de
+desborde, así una avalancha de claves elegidas por el cliente no agota la memoria. Con `QueueTimeout > 0` el llamador
+duerme hasta el siguiente permiso en lugar de sondear.
+
+`PartitionKeyResolver` recibe la request. A través del mediador (`ResilienceBehavior`) es automático; si llamas a una policy directamente usa `policy.ExecuteForRequestAsync(request, ct => ...)` (`ExecuteAsync` a secas lanza `InvalidOperationException` porque no hay request disponible).
+
+**Fallback ante un resultado fallido.** `FallbackOptions.FallbackOnResultPredicate` reemplaza un resultado fallido que
+no lanza excepción (por ejemplo `Result.Fail`); en ese caso `OnFallback` recibe una excepción `null`.
+
+**Hedge.** Se devuelve de inmediato el primer resultado aceptable. Los intentos perdedores se cancelan pero no se
+esperan, así que una operación que ignora su `CancellationToken` sigue ejecutándose en segundo plano.
+
+**Circuit breaker.** El resultado de una llamada solo cuenta si el circuito sigue en el estado en que fue admitida, de
+modo que las llamadas lentas que terminan tras una transición no pueden cerrarlo ni reabrirlo. Una sonda HalfOpen que
+nunca reporta se reemplaza tras `BreakDuration`.
+
+**Chaos.** Por defecto chaos queda fuera de Retry, Timeout y del circuit breaker: ejercita el Fallback y al llamador.
+Con `ChaosOptions.InjectPerAttempt = true` el fallo se inyecta en cada intento, de modo que reintentos, timeouts y
+circuit breaker reaccionan a él.
 
 ---
 

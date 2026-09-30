@@ -221,6 +221,17 @@ var policy = ResiliencePolicy.Create()
 
 | Option | Type | Default | Description |
 |---|---|---|---|
+| `Algorithm` | `RateLimiterAlgorithm` | `TokenBucket` | `TokenBucket` or `SlidingWindow` |
+| `BucketCapacity` / `TokensPerInterval` / `ReplenishmentInterval` | `int` / `int` / `TimeSpan` | `10` / `5` / 1 s | Token bucket. `TokensPerInterval = 0` disables replenishment; `BucketCapacity = 0` rejects every call |
+| `PermitLimit` / `Window` | `int` / `TimeSpan` | `100` / 1 s | Sliding window. `PermitLimit = 0` rejects every call |
+| `QueueTimeout` | `TimeSpan` | `0` (fail fast) | How long a caller waits for a permit before being rejected |
+| `PartitionKeyResolver` | `Func<object, string>?` | `null` | One independent limiter per key (user, IP...) |
+| `PartitionIdleTimeout` | `TimeSpan` | 5 min | Idle partitions are discarded (never before they have fully recovered) |
+| `MaxPartitions` | `int` | `10 000` | Upper bound on live partitions; beyond it new keys share one overflow limiter |
+
+`PartitionKeyResolver` receives the request. Through the mediator (`ResilienceBehavior`) that is automatic; when you call a policy directly use `policy.ExecuteForRequestAsync(request, ct => ...)` (plain `ExecuteAsync` throws `InvalidOperationException` because no request is available).
+
+---|---|---|---|
 | `Algorithm` | `RateLimiterAlgorithm` | `TokenBucket` | `TokenBucket`, `FixedWindow`, `SlidingWindow`, `Concurrency` |
 | `PermitLimit` | `int` | `10` | Maximum permits in the window or bucket capacity |
 | `Window` | `TimeSpan` | 1 second | Window duration for fixed/sliding window algorithms |
@@ -376,7 +387,7 @@ builder.Services.AddValiMediator(config =>
 If only `IHasTimeout` support is needed and the full resilience package is too heavy, register `TimeoutBehavior` individually:
 
 ```csharp
-config.AddRequestBehavior<TimeoutBehavior<,>>();
+config.AddRequestBehavior(typeof(TimeoutBehavior<,>));
 ```
 
 ---
@@ -455,10 +466,10 @@ Policies are applied from outermost to innermost. The following is the execution
 Fallback
   └── Chaos
         └── RateLimiter
-              └── Timeout
-                    └── Circuit Breaker
-                          └── Bulkhead
-                                └── Retry
+              └── Retry
+                    └── Timeout
+                          └── Circuit Breaker
+                                └── Bulkhead
                                       └── Hedge
                                             └── delegate (handler)
 ```
@@ -466,12 +477,56 @@ Fallback
 This means:
 - **Fallback** catches any exception that escapes the entire inner stack.
 - **Chaos** may inject a fault before the real call is attempted.
-- **RateLimiter** rejects excess calls before they reach the timeout or breaker.
-- **Timeout** enforces a ceiling on total wait time including retries.
-- **Circuit Breaker** short-circuits when cumulative failures exceed the threshold.
-- **Bulkhead** limits concurrency at the point of actual execution.
-- **Retry** re-attempts the delegate (and Hedge) on failure.
+- **RateLimiter** takes one permit per logical call: rejections are never retried and never count as circuit-breaker failures.
+- **Retry** re-attempts the whole Timeout → Circuit Breaker → Bulkhead → Hedge chain on failure.
+- **Timeout** is applied **per attempt** (each retry gets a fresh timeout).
+- **Circuit Breaker** short-circuits when cumulative failures exceed the threshold; an open circuit stops the retries. Caller cancellation and bulkhead rejections are not counted as failures.
+- **Bulkhead** limits concurrency at the point of actual execution. Up to `MaxQueuedCalls` callers wait for a slot (forever when `QueueTimeout` is infinite); the rest are rejected.
 - **Hedge** issues a duplicate parallel call if the primary is slow.
+
+---
+
+## Stateful Policies, Limits and Validation
+
+**Policies are resolved per request.** `ResilienceBehavior` calls `GetPolicy(request)` on every request. Bulkhead slots,
+rate-limiter buckets and circuit breakers live inside the policy instance, so a factory that builds a *new* policy
+each time silently starts every request with a fresh, empty limiter. Either return the same instance every time, or
+give the policy a fixed name with `WithSharedState`:
+
+```csharp
+services.AddResiliencePolicy<LoginCommand>(req =>
+    ResiliencePolicy.Create("login")
+        .Bulkhead(maxConcurrent: 20)
+        .RateLimiter(o => { o.BucketCapacity = 100; o.TokensPerInterval = 50; })
+        .WithSharedState("login")   // bulkhead, limiter and circuit breaker are shared by name
+        .Build());
+```
+
+Use a small set of fixed names, never request data: the number of distinct keys is capped at 10 000, and the first
+policy to use a name defines its limits.
+
+**Validation.** `Build()` throws `ArgumentOutOfRangeException` for out-of-range options (negative retries, zero
+timeout, zero concurrency, failure rate outside 0–1, non-positive replenishment interval, `MaxPartitions < 1`…)
+instead of failing later at run time.
+
+**Rate limiter.** `TokensPerInterval = 0` disables replenishment and `BucketCapacity` / `PermitLimit = 0` reject every
+call. `MaxPartitions` (default 10 000) bounds the live partitions: beyond it, new keys share one overflow limiter, so a
+flood of client-chosen keys cannot exhaust memory. A caller with `QueueTimeout > 0` sleeps until the next permit can
+exist instead of polling.
+
+**Fallback on a failed result.** `FallbackOptions.FallbackOnResultPredicate` replaces a non-throwing failed result
+(for example `Result.Fail`); `OnFallback` receives a `null` exception in that case.
+
+**Hedge.** The first acceptable result is returned immediately. The losing attempts are cancelled but not awaited, so
+an operation that ignores its `CancellationToken` keeps running in the background.
+
+**Circuit breaker.** A call's outcome only counts if the circuit is still in the state it was admitted in, so slow
+calls that finish after a transition cannot close or re-open it. A HalfOpen probe that never reports back is replaced
+after `BreakDuration`.
+
+**Chaos.** By default chaos sits outside Retry, Timeout and the circuit breaker: it exercises the Fallback and the
+caller. Set `ChaosOptions.InjectPerAttempt = true` to inject the fault on every attempt, so retries, timeouts and the
+circuit breaker react to it.
 
 ---
 
