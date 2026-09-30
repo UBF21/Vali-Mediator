@@ -21,7 +21,7 @@ To add Vali-Mediator to your .NET project, install it via NuGet with the followi
 dotnet add package Vali-Mediator
 ```
 
-Ensure your project targets a compatible .NET version (e.g., .NET 7.0, 8.0, or 9.0). Vali-Mediator is lightweight and depends only on **Microsoft.Extensions.DependencyInjection.Abstractions**, ensuring easy integration into any .NET application.
+Ensure your project targets a compatible .NET version (e.g., .NET 7.0, 8.0, 9.0, or 10.0). Vali-Mediator is lightweight and depends only on **Microsoft.Extensions.DependencyInjection.Abstractions**, ensuring easy integration into any .NET application.
 
 ## Usage 🛠️
 
@@ -480,10 +480,10 @@ using Vali_Mediator.Core.General.Behavior;
 
 public class ValidationBehavior<TDispatch> : IPipelineBehavior<TDispatch> where TDispatch : IDispatch
 {
-    public async Task Handle(TDispatch dispatch, Func<Task> next, CancellationToken cancellationToken)
+    public async Task Handle(TDispatch dispatch, Func<CancellationToken, Task> next, CancellationToken cancellationToken)
     {
         Console.WriteLine("Validating dispatch...");
-        await next();
+        await next(cancellationToken);
     }
 }
 
@@ -503,10 +503,10 @@ using Vali_Mediator.Core.General.Behavior;
 public class ValidationBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
     where TRequest : IRequest<TResponse>
 {
-    public async Task<TResponse> Handle(TRequest request, Func<Task<TResponse>> next, CancellationToken cancellationToken)
+    public async Task<TResponse> Handle(TRequest request, Func<CancellationToken, Task<TResponse>> next, CancellationToken cancellationToken)
     {
         Console.WriteLine("Validating request...");
-        return await next();
+        return await next(cancellationToken);
     }
 }
 
@@ -546,6 +546,16 @@ int productId = await mediator.Send(new CreateProductCommand { Name = "Laptop", 
 
 ## Features and Enhancements 🌟
 
+### v3.0.0 — Breaking release (core) · extension packages 2.0.0
+
+- `next` in pipeline behaviors is now `Func<CancellationToken, Task<T>>`: a timing-out behavior really cancels the handler.
+- Hardened defaults with **configurable limits** everywhere (cache entries/keys/groups, idempotency store size and key length, rate-limiter partitions, bounded `SendAll`). Every limit is a validated option with a safe default.
+- Idempotency: per-user/tenant `IdempotencyScope`, request fingerprint conflict detection. ASP.NET Core: 500 details hidden unless `ExposeErrorDetails`.
+- Resilience: new order Fallback → Chaos → RateLimiter → Retry → Timeout → Circuit Breaker → Bulkhead → Hedge; policies resolved per request (`WithSharedState(key)` to share limiter/bulkhead/breaker state).
+- Extension packages require `Vali-Mediator >= 3.0.0` (recommended range `[3.0.0, 4.0.0)`).
+
+See [docs/MIGRACION-3.0.md](docs/MIGRACION-3.0.md) and [CHANGELOG.md](CHANGELOG.md).
+
 ### v2.0.0 — Extension Packages
 
 | Package | Description |
@@ -573,7 +583,7 @@ int productId = await mediator.Send(new CreateProductCommand { Name = "Laptop", 
 - **Pre/Post-Processors**: auto-discovered from assembly scan
 - **Fire-and-Forget Support**: `IFireAndForget` / `IFireAndForgetHandler<T>`
 - **Compensation Flows**: Saga pattern with `ICompensable`
-- **Multi-targeting**: .NET 7, 8, and 9
+- **Multi-targeting**: .NET 7, 8, 9, and 10
 
 Follow the project on GitHub for updates on new features and improvements!
 

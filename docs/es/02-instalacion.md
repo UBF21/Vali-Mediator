@@ -92,11 +92,11 @@ builder.Services.AddValiMediator(config =>
     config.RegisterServicesFromAssemblyContaining<CreateOrderHandler>();
 
     // Para handlers IRequest<TResponse> (dos parámetros de tipo)
-    config.AddRequestBehavior<LoggingBehavior<,>>();
-    config.AddRequestBehavior<ValidationBehavior<,>>();
+    config.AddRequestBehavior(typeof(LoggingBehavior<,>));
+    config.AddRequestBehavior(typeof(ValidationBehavior<,>));
 
     // Para handlers INotification e IFireAndForget (un parámetro de tipo)
-    config.AddDispatchBehavior<NotificationLoggingBehavior<>>();
+    config.AddDispatchBehavior(typeof(NotificationLoggingBehavior<>));
 });
 ```
 
@@ -117,7 +117,7 @@ builder.Services.AddValiMediator(config =>
         ServiceLifetime.Transient);
 
     // Behavior sin estado registrado como Singleton
-    config.AddRequestBehavior<TimingBehavior<,>>(ServiceLifetime.Singleton);
+    config.AddRequestBehavior(typeof(TimingBehavior<,>), ServiceLifetime.Singleton);
 });
 ```
 
@@ -146,11 +146,11 @@ builder.Services.AddValiMediator(config =>
     config.RegisterServicesFromAssemblyContaining<Program>();
 
     // Pipeline: Logging → Validation → Handler → Validation → Logging
-    config.AddRequestBehavior<LoggingBehavior<,>>(ServiceLifetime.Singleton);
-    config.AddRequestBehavior<ValidationBehavior<,>>();
+    config.AddRequestBehavior(typeof(LoggingBehavior<,>), ServiceLifetime.Singleton);
+    config.AddRequestBehavior(typeof(ValidationBehavior<,>));
 
     // Pipeline de dispatch para notificaciones y fire-and-forget
-    config.AddDispatchBehavior<NotificationLoggingBehavior<>>(ServiceLifetime.Singleton);
+    config.AddDispatchBehavior(typeof(NotificationLoggingBehavior<>), ServiceLifetime.Singleton);
 });
 
 var app = builder.Build();
