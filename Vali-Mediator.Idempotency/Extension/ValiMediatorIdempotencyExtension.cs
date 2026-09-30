@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Vali_Mediator.Core.General.Behavior;
 using Vali_Mediator.Core.General.Extension;
 using Vali_Mediator_Idempotency.Core.Abstractions;
+using Vali_Mediator_Idempotency.Core.Options;
 using Vali_Mediator_Idempotency.Core.Serialization;
 using Vali_Mediator_Idempotency.Core.Store;
 using Vali_Mediator_Idempotency.Pipeline;
@@ -50,6 +51,46 @@ public static class ValiMediatorIdempotencyExtension
 
         services.AddSingleton<IIdempotencyStore, InMemoryIdempotencyStore>();
         services.AddSingleton<IIdempotencySerializer, JsonIdempotencySerializer>();
+
+        return services;
+    }
+
+    /// <summary>
+    /// Registers the in-memory store and serializer with custom capacity and retention limits.
+    /// </summary>
+    /// <param name="services">The service collection to configure.</param>
+    /// <param name="configure">Callback that adjusts <see cref="InMemoryIdempotencyStoreOptions"/>.</param>
+    /// <returns>The same <paramref name="services"/> for chaining.</returns>
+    public static IServiceCollection AddInMemoryIdempotencyStore(
+        this IServiceCollection services,
+        Action<InMemoryIdempotencyStoreOptions> configure)
+    {
+        if (services is null) throw new ArgumentNullException(nameof(services));
+        if (configure is null) throw new ArgumentNullException(nameof(configure));
+
+        var options = new InMemoryIdempotencyStoreOptions();
+        configure(options);
+        services.AddSingleton(options);
+
+        return services.AddInMemoryIdempotencyStore();
+    }
+
+    /// <summary>
+    /// Registers <see cref="IdempotencyOptions"/> (key-length limit and payload fingerprint verification).
+    /// </summary>
+    /// <param name="services">The service collection to configure.</param>
+    /// <param name="configure">Callback that adjusts <see cref="IdempotencyOptions"/>.</param>
+    /// <returns>The same <paramref name="services"/> for chaining.</returns>
+    public static IServiceCollection AddIdempotencyOptions(
+        this IServiceCollection services,
+        Action<IdempotencyOptions> configure)
+    {
+        if (services is null) throw new ArgumentNullException(nameof(services));
+        if (configure is null) throw new ArgumentNullException(nameof(configure));
+
+        var options = new IdempotencyOptions();
+        configure(options);
+        services.AddSingleton(options);
 
         return services;
     }
