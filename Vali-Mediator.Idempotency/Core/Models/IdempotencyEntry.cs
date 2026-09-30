@@ -17,7 +17,7 @@ public sealed class IdempotencyEntry
     public byte[] SerializedResponse { get; init; } = Array.Empty<byte>();
 
     /// <summary>
-    /// Gets the assembly-qualified type name of the response, used for deserialization.
+    /// Gets the version-independent type name of the response, checked before deserializing.
     /// </summary>
     public string ResponseTypeName { get; init; } = string.Empty;
 
@@ -35,5 +35,16 @@ public sealed class IdempotencyEntry
     /// Gets a value indicating whether this entry has passed its expiry time.
     /// Returns <c>false</c> for entries that have no expiry (<see cref="ExpiresAt"/> is <c>null</c>).
     /// </summary>
-    public bool IsExpired => ExpiresAt.HasValue && DateTimeOffset.UtcNow > ExpiresAt.Value;
+    public bool IsExpired => IsExpiredAt(DateTimeOffset.UtcNow);
+
+    /// <summary>
+    /// Gets the SHA-256 fingerprint (hex) of the original request payload, or empty when it was not recorded.
+    /// </summary>
+    public string RequestFingerprint { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Returns whether this entry is expired at <paramref name="now"/>.
+    /// </summary>
+    /// <param name="now">The instant to evaluate against.</param>
+    public bool IsExpiredAt(DateTimeOffset now) => ExpiresAt.HasValue && now > ExpiresAt.Value;
 }

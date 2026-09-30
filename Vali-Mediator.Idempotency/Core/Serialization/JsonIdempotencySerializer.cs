@@ -9,7 +9,8 @@ public sealed class JsonIdempotencySerializer : IIdempotencySerializer
 {
     private static readonly JsonSerializerOptions DefaultOptions = new JsonSerializerOptions
     {
-        PropertyNameCaseInsensitive = true
+        PropertyNameCaseInsensitive = true,
+        Converters = { new ResultJsonConverterFactory() }
     };
 
     /// <inheritdoc />

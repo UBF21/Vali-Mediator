@@ -273,13 +273,54 @@ builder.Services.AddValiMediator(config =>
 {
     config.RegisterServicesFromAssemblyContaining<Program>();
     config.AddIdempotencyBehavior();
-    config.AddRequestBehavior<ValidationBehavior<,>>();
+    config.AddRequestBehavior(typeof(ValidationBehavior<,>));
 });
 
 var app = builder.Build();
 app.MapControllers();
 app.Run();
 ```
+
+---
+
+## Alcance, Verificacion de Payload y Limites
+
+- **Alcance.** `IIdempotent.IdempotencyScope` (por defecto `null`) forma parte de la clave almacenada. Devuelve la identidad del llamador (usuario, tenant) en toda peticion cuya `IdempotencyKey` la envia el cliente; de lo contrario dos usuarios con la misma clave recibirian la respuesta del otro.
+- **Verificacion de payload.** Se guarda una huella SHA-256 de la peticion serializada. Reusar una clave con otro payload devuelve `Result.Fail(..., ErrorType.Conflict)` si la respuesta es `Result`/`Result<T>`, o lanza `IdempotencyConflictException` en otro caso. Se desactiva con `AddIdempotencyOptions(o => o.VerifyRequestFingerprint = false)` si las peticiones llevan campos volatiles (marcas de tiempo, ids de correlacion). Las peticiones no serializables no se verifican.
+- **Los fallos no se guardan.** Un `Result` fallido se devuelve al llamador pero nunca se reproduce, asi un error transitorio no queda pegado a la clave.
+- **Los nombres de tipo no dependen de la version.** Las entradas escritas con una version anterior del ensamblado siguen reproduciendose tras actualizar.
+
+| Opcion | Por defecto | Efecto |
+|--------|-------------|--------|
+| `IdempotencyOptions.MaxKeyLength` | 256 | Largo maximo de `IdempotencyKey` e `IdempotencyScope`; claves mas largas o vacias lanzan `ArgumentException` |
+| `IdempotencyOptions.VerifyRequestFingerprint` | `true` | Detecta el reuso de la clave con otro payload |
+| `InMemoryIdempotencyStoreOptions.MaxEntries` | 10.000 | Se expulsan primero las entradas mas antiguas |
+| `InMemoryIdempotencyStoreOptions.DefaultExpiration` | 24 horas | Se aplica cuando `Expiration` es `null`; `null` lo desactiva |
+
+```csharp
+services.AddIdempotencyOptions(o => o.MaxKeyLength = 128);
+services.AddInMemoryIdempotencyStore(o => { o.MaxEntries = 50_000; o.DefaultExpiration = TimeSpan.FromHours(6); });
+```
+
+### Varias instancias compartiendo un store (reserva atomica)
+
+El bloqueo por clave vive dentro de un proceso. Cuando varias instancias comparten un store (Redis, SQL, ...) y reciben la misma clave a la vez, cada una ejecutaria el handler. Para evitarlo, un store puede adherirse a una **reserva atomica** mediante tres miembros por defecto de `IIdempotencyStore` (los stores existentes siguen funcionando igual; simplemente no se adhieren):
+
+| Miembro | Contrato |
+|---------|----------|
+| `bool SupportsReservation` (por defecto `false`) | Devuelve `true` para activar el flujo de reserva |
+| `Task<string?> TryReserveAsync(key, lease, ct)` | Reclama `key` de forma atomica durante `lease`; devuelve un token opaco, o `null` si otro la tiene (Redis: `SET key token NX PX lease`) |
+| `Task ReleaseReservationAsync(key, token, ct)` | Libera solo si `token` sigue siendo el dueno (Redis: compare-and-delete con un script Lua) |
+
+Con `SupportsReservation`, el behavior ejecuta: reproducir si hay respuesta → reservar → ejecutar el handler → guardar la respuesta → liberar (siempre, tambien ante fallo o cancelacion). Quien no gana la reserva consulta hasta que aparece la respuesta del ganador (se reproduce) o la reserva se libera (lo intenta de nuevo). `InMemoryIdempotencyStore` implementa el contrato.
+
+| Opcion (`IdempotencyOptions`) | Por defecto | Efecto |
+|--------|-------------|--------|
+| `ReservationLease` | 30 s | Vida de una reserva que nunca se libera (instancia caida). **Debe superar la duracion maxima del handler**, o otra instancia puede iniciar el mismo trabajo |
+| `ReservationWaitTimeout` | 30 s | Cuanto espera un llamador a otra instancia antes de recibir `Result.Fail(..., ErrorType.Conflict)` (o `IdempotencyInProgressException` en respuestas que no son `Result`); el cliente puede reintentar |
+| `ReservationPollInterval` | 25 ms | Cada cuanto consulta un llamador en espera si ya hay respuesta |
+
+Un store inalcanzable debe fallar cerrado (dejar propagar la excepcion): suponer "no visto antes" ejecutaria un pago dos veces.
 
 ---
 

@@ -17,7 +17,14 @@ public interface IIdempotent
 
     /// <summary>
     /// Gets the duration for which the stored response should be retained.
-    /// <c>null</c> means the entry is kept indefinitely (until the store is cleared or the entry is evicted).
+    /// <c>null</c> lets the store apply its default expiration (24 hours for the in-memory store).
     /// </summary>
     TimeSpan? Expiration { get; }
+
+    /// <summary>
+    /// Gets an optional scope (user, tenant, client id) that isolates keys: the same
+    /// <see cref="IdempotencyKey"/> under different scopes never shares a stored response.
+    /// Return the caller identity for any request whose key is client-supplied. Default: <c>null</c> (no scope).
+    /// </summary>
+    string? IdempotencyScope => null;
 }
