@@ -208,6 +208,31 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+  lint:
+    name: MegaLinter
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: MegaLinter
+        id: ml
+        uses: oxsecurity/megalinter@v8
+        env:
+          VALIDATE_ALL_CODEBASE: ${{ github.event_name != 'pull_request' }}
+          DEFAULT_WORKSPACE: ${{ github.workspace }}
+
+      - name: Upload MegaLinter reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: megalinter-reports
+          path: |
+            megalinter-reports
+            mega-linter.log
+          retention-days: 14
+
   coverage:
     name: Coverage gate (>= 95% per library)
     needs: test
