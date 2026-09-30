@@ -30,7 +30,7 @@ builder.Services.AddValiMediator(config =>
 });
 ```
 
-`AddInMemoryIdempotencyStore()` registers a thread-safe, in-process `IIdempotencyStore` backed by a `ConcurrentDictionary`. Suitable for single-instance deployments and testing. For distributed systems, replace it with a Redis or database-backed store (see [Custom Store](#custom-store) below).
+`AddInMemoryIdempotencyStore()` registers a thread-safe, in-process `IIdempotencyStore` with bounded capacity (see [Scope, Payload Verification and Limits](#scope-payload-verification-and-limits)). Suitable for single-instance deployments and testing. For distributed systems, replace it with a Redis or database-backed store (see [Custom Store](#custom-store) below).
 
 `AddIdempotencyBehavior()` registers `IdempotencyBehavior<,>` for `IRequest<TResponse>` handlers. Only requests that implement `IIdempotent` are intercepted — all other requests pass through without any overhead.
 
@@ -53,7 +53,7 @@ public interface IIdempotent
 | Property | Description |
 |---|---|
 | `IdempotencyKey` | A string that uniquely identifies this specific operation. If two requests share the same key, the second returns the stored result without calling the handler. |
-| `Expiration` | How long the stored result is retained. `null` means the entry persists until the store is cleared or the application restarts. |
+| `Expiration` | How long the stored result is retained. `null` lets the store apply its default expiration (24 hours for the in-memory store). |
 
 ---
 
@@ -347,8 +347,8 @@ builder.Services.AddValiMediator(config =>
     config.AddIdempotencyBehavior();
 
     // Other behaviors run only when the handler actually executes
-    config.AddRequestBehavior<ValidationBehavior<,>>();
-    config.AddRequestBehavior<LoggingBehavior<,>>(ServiceLifetime.Singleton);
+    config.AddRequestBehavior(typeof(ValidationBehavior<,>));
+    config.AddRequestBehavior(typeof(LoggingBehavior<,>), ServiceLifetime.Singleton);
 });
 
 builder.Services.AddControllers();
@@ -360,6 +360,47 @@ app.UseAuthorization();
 app.MapControllers();
 app.Run();
 ```
+
+---
+
+## Scope, Payload Verification and Limits
+
+- **Scope.** `IIdempotent.IdempotencyScope` (default `null`) is part of the stored key. Return the caller identity (user id, tenant) for any request whose `IdempotencyKey` is client-supplied; otherwise two users sending the same key would receive each other's stored response.
+- **Payload verification.** A SHA-256 fingerprint of the serialized request is stored. Reusing a key with a different payload returns `Result.Fail(..., ErrorType.Conflict)` when the response is a `Result`/`Result<T>`, or throws `IdempotencyConflictException` otherwise. Disable with `AddIdempotencyOptions(o => o.VerifyRequestFingerprint = false)` if requests carry volatile fields (timestamps, correlation ids). Requests that cannot be serialized are not fingerprinted.
+- **Failures are not stored.** A failed `Result` is returned to the caller but never replayed, so a transient error does not stick to the key.
+- **Type names are version independent.** Entries written by an older assembly version keep replaying after an upgrade.
+
+| Option | Default | Effect |
+|--------|---------|--------|
+| `IdempotencyOptions.MaxKeyLength` | 256 | Maximum length of `IdempotencyKey` and `IdempotencyScope`; longer or empty keys throw `ArgumentException` |
+| `IdempotencyOptions.VerifyRequestFingerprint` | `true` | Detect key reuse with a different payload |
+| `InMemoryIdempotencyStoreOptions.MaxEntries` | 10,000 | Oldest entries are evicted first |
+| `InMemoryIdempotencyStoreOptions.DefaultExpiration` | 24 hours | Applied when `Expiration` is `null`; `null` disables it |
+
+```csharp
+services.AddIdempotencyOptions(o => o.MaxKeyLength = 128);
+services.AddInMemoryIdempotencyStore(o => { o.MaxEntries = 50_000; o.DefaultExpiration = TimeSpan.FromHours(6); });
+```
+
+### Several instances sharing one store (atomic reservation)
+
+The per-key lock lives inside one process. When several instances share a store (Redis, SQL, ...) and receive the same key at the same time, each would run the handler. To prevent it, a store can opt in to an **atomic reservation** through three default members of `IIdempotencyStore` (existing stores keep working unchanged, they simply do not opt in):
+
+| Member | Contract |
+|--------|----------|
+| `bool SupportsReservation` (default `false`) | Return `true` to enable the reservation flow |
+| `Task<string?> TryReserveAsync(key, lease, ct)` | Atomically claim `key` for `lease`; return an opaque token, or `null` when someone else holds it (Redis: `SET key token NX PX lease`) |
+| `Task ReleaseReservationAsync(key, token, ct)` | Release only if `token` still owns the reservation (Redis: compare-and-delete with a Lua script) |
+
+With `SupportsReservation`, the behavior runs: replay if an answer exists → reserve → run the handler → store the answer → release (always, also on failure or cancellation). A caller that does not win the reservation polls until the winner's answer appears (it is replayed) or the reservation is freed (it tries again). `InMemoryIdempotencyStore` implements the contract.
+
+| Option (`IdempotencyOptions`) | Default | Effect |
+|--------|---------|--------|
+| `ReservationLease` | 30 s | Lifetime of a reservation that is never released (crashed instance). **Must exceed the handler's worst-case duration**, or another instance may start the same work |
+| `ReservationWaitTimeout` | 30 s | How long a caller waits for another instance before receiving `Result.Fail(..., ErrorType.Conflict)` (or `IdempotencyInProgressException` for non-`Result` responses); the client may retry |
+| `ReservationPollInterval` | 25 ms | How often a waiting caller checks for the answer |
+
+A store that is unreachable should fail closed (let the exception propagate): guessing "not seen before" would execute a payment twice.
 
 ---
 
