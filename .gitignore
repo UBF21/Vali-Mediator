@@ -33,3 +33,20 @@ packages/
 *.swp
 *.swo
 *~
+# Test/benchmark outputs
+TestResults/
+BenchmarkDotNet.Artifacts/
+
+# Local pack/coverage output
+artifacts/
+coverage.*.xml
+*.trx
+
+artifacts/
+
+# Local test output
+TestResults/
+artifacts/
+BenchmarkDotNet.Artifacts/
+*.trx
+coverage.*.xml
