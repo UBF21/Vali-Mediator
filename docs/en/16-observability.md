@@ -38,6 +38,18 @@ builder.Services.AddValiMediator(config =>
 
 `AddObservabilityBehavior()` registers `ObservabilityBehavior<,>` as the outermost request pipeline behavior. Place it first in the behavior registration order so it wraps all other behaviors.
 
+### Sensitive data and observer errors
+
+Exception messages often carry user data or secrets, so by default only the exception **type** is written to the activity status, the `observer.error` event and `ConsoleLoggingObserver`. Opt in explicitly:
+
+```csharp
+builder.Services.AddObservability(o => o.IncludeExceptionMessage = true);
+```
+
+`ObservabilityContext.Request` / `Response` still carry the full payload for custom observers; do not log them without redaction.
+
+A failing `IRequestObserver` never changes the request outcome. The error is recorded as an `observer.error` activity event (only visible with an `ActivityListener`) **and** reported to `IMetricsCollector.RecordObserverError(observerType, hook, exception)`, a default interface method that does nothing unless you override it.
+
 ---
 
 ## Distributed Tracing
@@ -342,8 +354,8 @@ builder.Services.AddValiMediator(config =>
     config.AddObservabilityBehavior();
 
     // Other behaviors run inside observability
-    config.AddRequestBehavior<ValidationBehavior<,>>();
-    config.AddRequestBehavior<TimingBehavior<,>>(ServiceLifetime.Singleton);
+    config.AddRequestBehavior(typeof(ValidationBehavior<,>));
+    config.AddRequestBehavior(typeof(TimingBehavior<,>), ServiceLifetime.Singleton);
 });
 
 builder.Services.AddControllers();
