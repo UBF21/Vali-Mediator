@@ -181,15 +181,43 @@ Tune the built-in in-memory store by passing options to `AddInMemoryCacheStore`:
 ```csharp
 builder.Services.AddInMemoryCacheStore(opts =>
 {
-    opts.MaxSize         = 1000;
+    opts.MaxEntries      = 10_000;
+    opts.MaxKeyLength    = 512;
+    opts.MaxGroups       = 10_000;
+    opts.MaxKeysPerGroup = 10_000;
     opts.CleanupInterval = TimeSpan.FromMinutes(5);
 });
 ```
 
 | Option | Type | Default | Description |
 |---|---|---|---|
-| `MaxSize` | `int` | `500` | Maximum number of entries held in memory; oldest entries are evicted when the limit is reached |
-| `CleanupInterval` | `TimeSpan` | 2 minutes | Interval at which expired entries are scanned and removed from memory |
+| `MaxEntries` | `int` | `10_000` | Strict bound on the number of entries. When full, the least recently used entry is evicted |
+| `MaxKeyLength` | `int` | `512` | Longer keys (or group names) are never stored: reads miss and writes are ignored |
+| `MaxGroups` | `int` | `10_000` | Maximum number of distinct groups indexed at once |
+| `MaxKeysPerGroup` | `int` | `10_000` | Maximum number of keys under one group |
+| `CleanupInterval` | `TimeSpan` | 5 minutes | Minimum interval between full sweeps of expired entries (run lazily on writes; expired entries are also removed when read) |
+| `TimeProvider` | `TimeProvider` | `TimeProvider.System` | Clock used for expiration; replace it for deterministic tests |
+
+All numeric limits must be greater than zero. When a key cannot be indexed because a group limit is
+reached, the entry is dropped from the cache instead of being left where a group invalidation could not reach it.
+
+### Behavior options and concurrent misses
+
+Concurrent misses for the same `CacheKey` share one handler execution, including when the result is a
+failed `Result` (failures are shared but never cached). A waiter never blocks longer than
+`CoalescingWaitTimeout`: after that it runs the handler itself. If the running caller is cancelled the
+waiters retry; if it throws they observe the same exception.
+
+```csharp
+builder.Services.AddCachingOptions(o => o.CoalescingWaitTimeout = TimeSpan.FromSeconds(10));
+```
+
+### Security notes
+
+- Include the user or tenant (and anything else that changes the response) in `CacheKey`; two requests with
+  the same key receive the same cached response.
+- Cached instances are shared by every caller: treat responses as immutable.
+- Keep keys and group names bounded; the limits above exist to cap memory when they derive from client input.
 
 ---
 
@@ -296,7 +324,7 @@ builder.Services.AddValiMediator(config =>
 // Choose one:
 builder.Services.AddInMemoryCacheStore(opts =>
 {
-    opts.MaxSize         = 2000;
+    opts.MaxEntries      = 2000;
     opts.CleanupInterval = TimeSpan.FromMinutes(3);
 });
 
