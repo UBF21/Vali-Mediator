@@ -3,41 +3,22 @@
     <PropertyGroup>
         <TargetFrameworks>net7.0;net8.0;net9.0</TargetFrameworks>
         <RootNamespace>Vali_Mediator_Resilience</RootNamespace>
-        <ImplicitUsings>enable</ImplicitUsings>
-        <Nullable>enable</Nullable>
-        <GenerateDocumentationFile>true</GenerateDocumentationFile>
 
         <!-- Package identity -->
         <PackageId>Vali-Mediator.Resilience</PackageId>
-        <Version>1.2.4</Version>
+        <Version>2.0.0</Version>
         <Title>Vali-Mediator.Resilience</Title>
         <Product>Vali-Mediator.Resilience</Product>
-        <Authors>Felipe Rafael Montenegro Morriberon</Authors>
-        <Copyright>Copyright © 2025 Felipe Rafael Montenegro Morriberon. All rights reserved.</Copyright>
 
-        <!-- Repository -->
-        <RepositoryUrl>https://github.com/UBF21/Vali-Mediator</RepositoryUrl>
-        <RepositoryType>git</RepositoryType>
         <PackageProjectUrl>https://vali-mediator-docs.netlify.app/docs/resilience/overview</PackageProjectUrl>
 
-        <!-- License -->
-        <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
-        <PackageRequireLicenseAcceptance>true</PackageRequireLicenseAcceptance>
 
         <!-- Discoverability -->
         <PackageTags>resilience;retry;circuit-breaker;timeout;fallback;bulkhead;rate-limiter;hedge;chaos;mediator;cqrs;dotnet;vali</PackageTags>
-        <PackageIcon>logo.png</PackageIcon>
-        <PackageReadmeFile>README.md</PackageReadmeFile>
 
-        <!-- Source Link / Symbols -->
-        <PublishRepositoryUrl>true</PublishRepositoryUrl>
-        <EmbedUntrackedSources>true</EmbedUntrackedSources>
-        <DebugType>embedded</DebugType>
-        <IncludeSymbols>true</IncludeSymbols>
-        <SymbolPackageFormat>snupkg</SymbolPackageFormat>
 
         <Description>
-            Zero-dependency resilience library for .NET 7/8/9. Provides Retry (with jitter/backoff),
+            Zero-dependency resilience library for .NET 7/8/9/10. Provides Retry (with jitter/backoff),
             Circuit Breaker (sliding-window state machine), Timeout (optimistic + pessimistic),
             Fallback, Bulkhead, Rate Limiter (partitioned per-user/IP), Hedge, and Chaos policies via a fluent builder API.
             Attach policies to Vali-Mediator requests via IResiliencePolicyProvider&lt;T&gt; (no class needed),
@@ -45,6 +26,8 @@
         </Description>
 
         <PackageReleaseNotes>
+            v2.0.0 — Requires Vali-Mediator >= 3.0.0. BREAKING: new execution order, per-request policies (WithSharedState), Hedge/circuit breaker/bulkhead/rate limiter fixes, option validation. See CHANGELOG.md.
+
             v1.2.4 — Tests for auto-discovery:
             - Unit tests for RegisterResiliencePoliciesFromAssemblyContaining&lt;T&gt;() and RegisterResiliencePoliciesFromAssembly(): provider discovery, default Scoped lifetime, lifetime override, null argument guards, and policy validity.
             - Total test count: 87 → 97.
@@ -101,9 +84,13 @@
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="Vali-Mediator" Version="2.0.0" />
+        <ProjectReference Include="../Vali-Mediator/Vali-Mediator.csproj" />
         <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="7.0.0" />
-        <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All" />
+        <PackageReference Include="Microsoft.SourceLink.GitHub" Version="10.0.401" PrivateAssets="All" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <InternalsVisibleTo Include="Vali-Mediator.Resilience.Tests" />
     </ItemGroup>
 
 </Project>

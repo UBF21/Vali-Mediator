@@ -1,4 +1,6 @@
+using Vali_Mediator_Resilience.Core.Enums;
 using Vali_Mediator_Resilience.Core.Options;
+using Vali_Mediator_Resilience.Core.Pipeline;
 using Vali_Mediator_Resilience.Core.Registry;
 
 namespace Vali_Mediator_Resilience.Core.Policies;
@@ -19,6 +21,7 @@ public sealed class ResiliencePolicyBuilder
     private RateLimiterOptions? _rateLimiter;
     private ChaosOptions? _chaos;
     private ICircuitBreakerRegistry? _registry;
+    private string? _stateKey;
 
     internal ResiliencePolicyBuilder(string? operationKey)
     {
@@ -156,6 +159,28 @@ public sealed class ResiliencePolicyBuilder
         return this;
     }
 
+    /// <summary>
+    /// Makes the stateful parts of this policy — bulkhead slots, rate-limiter buckets and circuit breakers
+    /// (unless <see cref="UseRegistry"/> is set) — shared by every policy built with the same
+    /// <paramref name="stateKey"/>, for the lifetime of the process.
+    /// </summary>
+    /// <remarks>
+    /// Required when the policy is rebuilt on every request, e.g.
+    /// <c>AddResiliencePolicy&lt;T&gt;(req =&gt; ResiliencePolicy.Create().Bulkhead(5).WithSharedState("payments").Build())</c>;
+    /// without it each request gets its own fresh bulkhead and rate limiter and the limits never apply.
+    /// The first policy to use a key defines its limits. Use a small set of fixed names, never request data:
+    /// the number of distinct keys is capped at 10 000.
+    /// </remarks>
+    /// <param name="stateKey">A fixed, developer-chosen name.</param>
+    public ResiliencePolicyBuilder WithSharedState(string stateKey)
+    {
+        if (string.IsNullOrWhiteSpace(stateKey))
+            throw new ArgumentException("State key must not be null or whitespace.", nameof(stateKey));
+
+        _stateKey = stateKey;
+        return this;
+    }
+
     // -----------------------------------------------------------------------
     // Build
     // -----------------------------------------------------------------------
@@ -165,11 +190,8 @@ public sealed class ResiliencePolicyBuilder
     /// The fallback must be supplied per-call via <see cref="ResiliencePolicy.ExecuteAsync{T}(Func{CancellationToken, Task{T}}, FallbackOptions{T}?, CancellationToken)"/>
     /// because it is typed to the return value.
     /// </summary>
-    public ResiliencePolicy Build()
-    {
-        var registry = _registry ?? new CircuitBreakerRegistry();
-        return new ResiliencePolicy(OperationKey, _retry, _circuitBreaker, _timeout, _bulkhead, _hedge, _rateLimiter, _chaos, registry);
-    }
+    /// <exception cref="ArgumentException">An option value is out of range (see each option's documentation).</exception>
+    public ResiliencePolicy Build() => new ResiliencePolicy(OperationKey, BuildDefinition());
 
     /// <summary>
     /// Builds a typed <see cref="ResiliencePolicy{T}"/> that includes a fallback policy for type <typeparamref name="T"/>.
@@ -178,8 +200,32 @@ public sealed class ResiliencePolicyBuilder
     {
         var fallbackOptions = new FallbackOptions<T>();
         configure(fallbackOptions);
-        var registry = _registry ?? new CircuitBreakerRegistry();
-        return new ResiliencePolicy<T>(OperationKey, _retry, _circuitBreaker, _timeout, _bulkhead, _hedge, _rateLimiter, _chaos, fallbackOptions, registry);
+        return new ResiliencePolicy<T>(OperationKey, BuildDefinition(), fallbackOptions);
+    }
+
+    private PolicyDefinition BuildDefinition()
+    {
+        OptionsValidator.IfSet(_retry, OptionsValidator.Validate);
+        OptionsValidator.IfSet(_circuitBreaker, OptionsValidator.Validate);
+        OptionsValidator.IfSet(_timeout, OptionsValidator.Validate);
+        OptionsValidator.IfSet(_bulkhead, OptionsValidator.Validate);
+        OptionsValidator.IfSet(_hedge, OptionsValidator.Validate);
+        OptionsValidator.IfSet(_rateLimiter, OptionsValidator.Validate);
+        OptionsValidator.IfSet(_chaos, OptionsValidator.Validate);
+
+        return new PolicyDefinition
+        {
+            Retry = _retry,
+            CircuitBreaker = _circuitBreaker,
+            Timeout = _timeout,
+            Bulkhead = _bulkhead,
+            Hedge = _hedge,
+            RateLimiter = _rateLimiter,
+            Chaos = _chaos,
+            StateKey = _stateKey,
+            Registry = _registry
+                ?? (_stateKey != null ? SharedPolicyStates.Circuits : new CircuitBreakerRegistry())
+        };
     }
 
     internal RetryOptions? RetryOptions => _retry;
@@ -189,5 +235,4 @@ public sealed class ResiliencePolicyBuilder
     internal HedgeOptions? HedgeOptions => _hedge;
     internal RateLimiterOptions? RateLimiterOptions => _rateLimiter;
     internal ChaosOptions? ChaosOptions => _chaos;
-    internal ICircuitBreakerRegistry EffectiveRegistry => _registry ?? new CircuitBreakerRegistry();
 }

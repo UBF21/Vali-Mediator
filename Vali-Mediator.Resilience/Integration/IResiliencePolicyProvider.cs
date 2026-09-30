@@ -5,6 +5,10 @@ namespace Vali_Mediator_Resilience.Integration;
 /// Register implementations in DI — ResilienceBehavior discovers them automatically.
 /// This is the preferred alternative to implementing IResilient on the command itself,
 /// since it keeps infrastructure concerns out of the domain model.
+/// <para>
+/// <see cref="GetPolicy"/> is called on every request. To share circuit-breaker / bulkhead state
+/// between calls, return the same <see cref="Core.Policies.ResiliencePolicy"/> instance (e.g. build it once in a field).
+/// </para>
 /// </summary>
 /// <example>
 /// <code>
@@ -28,5 +32,6 @@ namespace Vali_Mediator_Resilience.Integration;
 /// </example>
 public interface IResiliencePolicyProvider<TRequest>
 {
+    /// <summary>Returns the policy for <paramref name="request"/>; evaluated per request, never cached by the framework.</summary>
     Vali_Mediator_Resilience.Core.Policies.ResiliencePolicy GetPolicy(TRequest request);
 }

@@ -1,6 +1,24 @@
+using Vali_Mediator_Resilience.Core.Context;
 using Vali_Mediator_Resilience.Core.Options;
 
 namespace Vali_Mediator_Resilience.Core.Pipeline;
+
+/// <summary>Adapts <see cref="ChaosExecutor"/> to the middleware chain.</summary>
+internal sealed class ChaosMiddleware : IResilienceMiddleware
+{
+    private readonly ChaosOptions _options;
+
+    internal ChaosMiddleware(ChaosOptions options)
+    {
+        _options = options;
+    }
+
+    public Task<T> ExecuteAsync<T>(
+        Func<CancellationToken, Task<T>> next,
+        ResilienceContext context,
+        CancellationToken cancellationToken)
+        => ChaosExecutor.ExecuteAsync(next, _options, cancellationToken);
+}
 
 /// <summary>
 /// Injects random faults (exceptions, latency, or synthetic results) to simulate failures.

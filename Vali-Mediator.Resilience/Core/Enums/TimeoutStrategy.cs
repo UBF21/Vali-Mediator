@@ -13,7 +13,7 @@ public enum TimeoutStrategy
     Optimistic = 0,
 
     /// <summary>
-    /// Uses <see cref="System.Threading.Tasks.Task.WhenAny"/> to race the operation against a
+    /// Uses <c>Task.WhenAny</c> to race the operation against a
     /// timer task. The operation continues running in the background after the timeout fires,
     /// but the caller receives a <see cref="System.TimeoutException"/> immediately.
     /// Use when you cannot pass a CancellationToken into the delegate.
