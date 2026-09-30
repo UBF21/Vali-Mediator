@@ -28,9 +28,29 @@ public sealed class ResilienceContext
     /// Arbitrary user-defined properties that callbacks can read and write.
     /// Keyed by string; typed access helpers are provided via extension methods.
     /// </summary>
-    public Dictionary<string, object?> Properties { get; } = new Dictionary<string, object?>();
+    public Dictionary<string, object?> Properties { get; }
 
-    internal ResilienceContext() { }
+    internal const string RequestKey = "Vali.Request";
+
+    internal ResilienceContext() : this(new Dictionary<string, object?>()) { }
+
+    private ResilienceContext(Dictionary<string, object?> properties)
+    {
+        Properties = properties;
+    }
+
+    /// <summary>
+    /// Copy handed to per-attempt callbacks (e.g. <c>OnHedge</c>) so their <see cref="AttemptNumber"/>
+    /// never mutates the context other in-flight attempts are reading. <see cref="Properties"/> stays shared.
+    /// </summary>
+    internal ResilienceContext CloneForAttempt(int attemptNumber) => new ResilienceContext(Properties)
+    {
+        AttemptNumber = attemptNumber,
+        ElapsedTime = ElapsedTime,
+        LastException = LastException,
+        OperationKey = OperationKey,
+        CancellationToken = CancellationToken
+    };
 
     internal void Reset()
     {

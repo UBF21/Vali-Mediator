@@ -9,5 +9,7 @@ namespace Vali_Mediator_Resilience.Integration;
 /// </summary>
 public interface IGlobalResiliencePolicyProvider
 {
+    /// <summary>Returns the policy for <paramref name="request"/>, or <c>null</c> to run it without resilience.</summary>
+    /// <param name="request">The request being dispatched.</param>
     ResiliencePolicy GetPolicy(object request);
 }

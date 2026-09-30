@@ -92,11 +92,9 @@ public class HedgePolicyTests
     }
 
     [Fact]
-    public async Task Hedge_AllAttemptsThrow_ExceptionsAreSupressed_ReturnsDefault()
+    public async Task Hedge_AllAttemptsThrow_ThrowsLastException()
     {
-        // By default, exceptions from hedged attempts are treated as "try next hedge"
-        // (ShouldHedgeOnException = null → shouldHedge=true → IsSuccess=false, Exception=null).
-        // When all attempts exhaust with no winner, the executor returns default! (null for string).
+        int calls = 0;
         var policy = ResiliencePolicy.Create()
             .Hedge(opts =>
             {
@@ -105,15 +103,18 @@ public class HedgePolicyTests
             })
             .Build();
 
-        string? result = await policy.ExecuteAsync<string>(_ => throw new InvalidOperationException("suppressed"));
-        Assert.Null(result);
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            policy.ExecuteAsync<string>(_ =>
+                throw new InvalidOperationException($"fail-{Interlocked.Increment(ref calls)}")));
+
+        Assert.Equal(2, calls);
+        Assert.Equal("fail-2", ex.Message);
     }
 
     [Fact]
-    public async Task Hedge_ShouldHedgeOnException_WhenFalse_TreatsAttemptAsCompleteReturnsDefault()
+    public async Task Hedge_ShouldHedgeOnException_WhenFalse_ThrowsImmediatelyWithoutHedging()
     {
-        // When ShouldHedgeOnException = _ => false, the exception triggers IsSuccess=true (don't hedge further).
-        // The executor returns the Result from that attempt (which is default!) without rethrowing.
+        int calls = 0;
         var policy = ResiliencePolicy.Create()
             .Hedge(opts =>
             {
@@ -123,8 +124,150 @@ public class HedgePolicyTests
             })
             .Build();
 
-        string? result = await policy.ExecuteAsync<string>(_ => throw new InvalidOperationException("not hedged"));
-        Assert.Null(result); // default for string
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            policy.ExecuteAsync<string>(_ =>
+            {
+                Interlocked.Increment(ref calls);
+                throw new InvalidOperationException("not hedged");
+            }));
+
+        Assert.Equal(1, calls);
+    }
+
+    [Fact]
+    public async Task Hedge_FirstAttemptFails_HedgeDelayIsStillRespected()
+    {
+        var starts = new List<DateTime>();
+        var policy = ResiliencePolicy.Create()
+            .Hedge(opts =>
+            {
+                opts.HedgeDelay = TimeSpan.FromMilliseconds(150);
+                opts.MaxHedgedAttempts = 1;
+            })
+            .Build();
+
+        var result = await policy.ExecuteAsync<string>(_ =>
+        {
+            int idx;
+            lock (starts) { starts.Add(DateTime.UtcNow); idx = starts.Count; }
+            if (idx == 1) throw new InvalidOperationException("first fails");
+            return Task.FromResult("ok");
+        });
+
+        Assert.Equal("ok", result);
+        Assert.Equal(2, starts.Count);
+        Assert.True((starts[1] - starts[0]).TotalMilliseconds >= 100,
+            $"hedge fired after {(starts[1] - starts[0]).TotalMilliseconds} ms");
+    }
+
+    [Fact]
+    public async Task Hedge_Winner_ReturnsWithoutWaitingForLoserThatIgnoresItsToken()
+    {
+        int calls = 0;
+        var releaseLoser = new TaskCompletionSource();
+        var policy = ResiliencePolicy.Create()
+            .Hedge(opts =>
+            {
+                opts.HedgeDelay = TimeSpan.FromMilliseconds(20);
+                opts.MaxHedgedAttempts = 1;
+            })
+            .Build();
+
+        var call = policy.ExecuteAsync<string>(async _ =>
+        {
+            if (Interlocked.Increment(ref calls) == 1)
+            {
+                await releaseLoser.Task; // ignores the token on purpose
+                return "slow";
+            }
+            return "fast";
+        });
+
+        var finished = await Task.WhenAny(call, Task.Delay(TimeSpan.FromSeconds(10)));
+        Assert.Same(call, finished); // the winner must not be held back by the loser
+        Assert.Equal("fast", await call);
+        releaseLoser.SetResult();
+    }
+
+    [Fact]
+    public async Task Hedge_Winner_CancelsTheLosersToken()
+    {
+        int calls = 0;
+        var loserCancelled = new TaskCompletionSource();
+        var policy = ResiliencePolicy.Create()
+            .Hedge(opts =>
+            {
+                opts.HedgeDelay = TimeSpan.FromMilliseconds(20);
+                opts.MaxHedgedAttempts = 1;
+            })
+            .Build();
+
+        var result = await policy.ExecuteAsync<string>(async ct =>
+        {
+            if (Interlocked.Increment(ref calls) == 1)
+            {
+                try { await Task.Delay(Timeout.Infinite, ct); }
+                catch (OperationCanceledException) { loserCancelled.SetResult(); throw; }
+            }
+            return "fast";
+        });
+
+        Assert.Equal("fast", result);
+        var done = await Task.WhenAny(loserCancelled.Task, Task.Delay(TimeSpan.FromSeconds(10)));
+        Assert.Same(loserCancelled.Task, done);
+    }
+
+    [Fact]
+    public async Task Hedge_OnHedgeReceivesItsOwnAttemptNumberWithoutTouchingTheSharedContext()
+    {
+        int calls = 0;
+        int seenInCallback = -1;
+        var policy = ResiliencePolicy.Create()
+            .Hedge(opts =>
+            {
+                opts.HedgeDelay = TimeSpan.FromMilliseconds(20);
+                opts.MaxHedgedAttempts = 1;
+                opts.OnHedge = ctx => { seenInCallback = ctx.AttemptNumber; return Task.CompletedTask; };
+            })
+            .Build();
+
+        await policy.ExecuteAsync<string>(async ct =>
+        {
+            if (Interlocked.Increment(ref calls) == 1)
+                await Task.Delay(Timeout.Infinite, ct);
+            return "fast";
+        });
+
+        Assert.Equal(1, seenInCallback);
+    }
+
+    [Fact]
+    public async Task Hedge_DoesNotOverwriteRetryAttemptNumber()
+    {
+        int calls = 0;
+        var attemptsSeenByRetry = new List<int>();
+        var policy = ResiliencePolicy.Create()
+            .Retry(opts =>
+            {
+                opts.MaxRetries = 1;
+                opts.InitialDelay = TimeSpan.Zero;
+                opts.OnRetry = (ctx, _) => { attemptsSeenByRetry.Add(ctx.AttemptNumber); return Task.CompletedTask; };
+            })
+            .Hedge(opts =>
+            {
+                opts.HedgeDelay = TimeSpan.FromMilliseconds(5);
+                opts.MaxHedgedAttempts = 1;
+            })
+            .Build();
+
+        var result = await policy.ExecuteAsync<string>(_ =>
+        {
+            if (Interlocked.Increment(ref calls) <= 2) throw new InvalidOperationException("fail");
+            return Task.FromResult("ok");
+        });
+
+        Assert.Equal("ok", result);
+        Assert.Equal(new[] { 0 }, attemptsSeenByRetry);
     }
 
     [Fact]

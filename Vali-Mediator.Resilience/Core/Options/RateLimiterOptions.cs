@@ -53,4 +53,18 @@ public sealed class RateLimiterOptions
     /// opts.PartitionKeyResolver = req => ((LoginCommand)req).UserId;
     /// </example>
     public Func<object, string>? PartitionKeyResolver { get; set; }
+
+    /// <summary>
+    /// How long a partition can go unused before its state is discarded (only with <see cref="PartitionKeyResolver"/>).
+    /// The effective value is never below the time a partition needs to fully recover
+    /// (bucket refill time or <see cref="Window"/>), so eviction never grants extra permits. Default: 5 minutes.
+    /// </summary>
+    public TimeSpan PartitionIdleTimeout { get; set; } = TimeSpan.FromMinutes(5);
+
+    /// <summary>
+    /// Maximum number of live partitions (only with <see cref="PartitionKeyResolver"/>). Once reached, idle
+    /// partitions are swept first; if none can be evicted, further new keys share one common overflow limiter
+    /// instead of getting their own bucket. This bounds memory when keys are chosen by the client. Default: 10 000.
+    /// </summary>
+    public int MaxPartitions { get; set; } = 10_000;
 }

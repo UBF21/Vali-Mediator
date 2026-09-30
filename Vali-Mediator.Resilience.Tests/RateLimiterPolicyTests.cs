@@ -85,7 +85,10 @@ public class RateLimiterPolicyTests
 
         // Should succeed for the first 10 calls
         for (int i = 0; i < 10; i++)
-            await policy.ExecuteAsync<int>(_ => Task.FromResult(1));
+            Assert.Equal(1, await policy.ExecuteAsync<int>(_ => Task.FromResult(1)));
+
+        await Assert.ThrowsAsync<RateLimitExceededException>(() =>
+            policy.ExecuteAsync<int>(_ => Task.FromResult(1)));
     }
 
     // -----------------------------------------------------------------------
@@ -106,7 +109,13 @@ public class RateLimiterPolicyTests
             .Build();
 
         for (int i = 0; i < limit; i++)
-            await policy.ExecuteAsync<int>(_ => Task.FromResult(i));
+        {
+            int expected = i;
+            Assert.Equal(expected, await policy.ExecuteAsync<int>(_ => Task.FromResult(expected)));
+        }
+
+        await Assert.ThrowsAsync<RateLimitExceededException>(() =>
+            policy.ExecuteAsync<int>(_ => Task.FromResult(-1)));
     }
 
     [Fact]

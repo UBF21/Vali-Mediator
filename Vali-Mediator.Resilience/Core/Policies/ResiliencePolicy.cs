@@ -15,19 +15,10 @@ public sealed class ResiliencePolicy
     private readonly ResiliencePipeline _pipeline;
     internal readonly string? _operationKey;
 
-    internal ResiliencePolicy(
-        string? operationKey,
-        RetryOptions? retry,
-        CircuitBreakerOptions? circuitBreaker,
-        TimeoutOptions? timeout,
-        BulkheadOptions? bulkhead,
-        HedgeOptions? hedge,
-        RateLimiterOptions? rateLimiter,
-        ChaosOptions? chaos,
-        ICircuitBreakerRegistry registry)
+    internal ResiliencePolicy(string? operationKey, PolicyDefinition definition)
     {
         _operationKey = operationKey;
-        _pipeline = new ResiliencePipeline(retry, circuitBreaker, timeout, bulkhead, hedge, rateLimiter, chaos, registry);
+        _pipeline = new ResiliencePipeline(definition);
     }
 
     // -----------------------------------------------------------------------
@@ -98,6 +89,42 @@ public sealed class ResiliencePolicy
     }
 
     // -----------------------------------------------------------------------
+    // Execute on behalf of a request (partitioned rate limiting outside the mediator)
+    // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// Executes <paramref name="operation"/> on behalf of <paramref name="request"/>, so policies that need the
+    /// request (e.g. <see cref="Vali_Mediator_Resilience.Core.Options.RateLimiterOptions.PartitionKeyResolver"/>) work
+    /// when the policy is used directly, without <c>ResilienceBehavior</c>. The mediator does the same automatically.
+    /// </summary>
+    /// <param name="request">The request object passed to <c>PartitionKeyResolver</c>.</param>
+    /// <param name="operation">The async operation to protect.</param>
+    /// <param name="fallback">Optional typed fallback, activated on unhandled exception.</param>
+    /// <param name="cancellationToken">Propagated to the operation and timeout logic.</param>
+    public async Task<T> ExecuteForRequestAsync<T>(
+        object request,
+        Func<CancellationToken, Task<T>> operation,
+        FallbackOptions<T>? fallback = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (request is null) throw new ArgumentNullException(nameof(request));
+        var context = BuildContext(new Dictionary<string, object?> { [ResilienceContext.RequestKey] = request });
+        return await _pipeline.ExecuteAsync(operation, fallback, context, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>Void variant of <see cref="ExecuteForRequestAsync{T}"/>.</summary>
+    public async Task ExecuteForRequestAsync(
+        object request,
+        Func<CancellationToken, Task> operation,
+        CancellationToken cancellationToken = default)
+    {
+        if (request is null) throw new ArgumentNullException(nameof(request));
+        var context = BuildContext(new Dictionary<string, object?> { [ResilienceContext.RequestKey] = request });
+        await _pipeline.ExecuteAsync(operation, context, cancellationToken).ConfigureAwait(false);
+    }
+
+    // -----------------------------------------------------------------------
     // Internal (used by ResilienceBehavior to seed request into context)
     // -----------------------------------------------------------------------
 
@@ -139,21 +166,11 @@ public sealed class ResiliencePolicy<T>
     private readonly FallbackOptions<T> _fallback;
     internal readonly string? _operationKey;
 
-    internal ResiliencePolicy(
-        string? operationKey,
-        RetryOptions? retry,
-        CircuitBreakerOptions? circuitBreaker,
-        TimeoutOptions? timeout,
-        BulkheadOptions? bulkhead,
-        HedgeOptions? hedge,
-        RateLimiterOptions? rateLimiter,
-        ChaosOptions? chaos,
-        FallbackOptions<T> fallback,
-        ICircuitBreakerRegistry registry)
+    internal ResiliencePolicy(string? operationKey, PolicyDefinition definition, FallbackOptions<T> fallback)
     {
         _operationKey = operationKey;
         _fallback = fallback;
-        _pipeline = new ResiliencePipeline(retry, circuitBreaker, timeout, bulkhead, hedge, rateLimiter, chaos, registry);
+        _pipeline = new ResiliencePipeline(definition);
     }
 
     /// <summary>Executes <paramref name="operation"/> with the embedded fallback and all other configured policies.</summary>

@@ -34,6 +34,14 @@ public sealed class ChaosOptions
     /// </summary>
     public Random? Random { get; set; }
 
+    /// <summary>
+    /// Where chaos sits in the pipeline. <c>false</c> (default): outermost, once per logical call — it exercises
+    /// the Fallback and the caller, but Retry, Timeout and Circuit Breaker never see the injected fault.
+    /// <c>true</c>: innermost, once per attempt — injected faults are retried, time out and count against the
+    /// circuit breaker, so those policies can be tested.
+    /// </summary>
+    public bool InjectPerAttempt { get; set; }
+
     /// <summary>Called before a chaos fault is injected.</summary>
     public Func<Task>? OnChaosInjected { get; set; }
 

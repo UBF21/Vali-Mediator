@@ -11,18 +11,19 @@ namespace Vali_Mediator_Resilience.Integration;
 ///   <item><see cref="IResiliencePolicyProvider{TRequest}"/> registered in DI (preferred — keeps policy out of the domain model).</item>
 ///   <item><see cref="IResilient"/> implemented on the request itself (legacy / simple cases).</item>
 /// </list>
+/// The policy is resolved on every request; a <c>null</c> result means "no resilience" and is never cached.
+/// Providers that must share circuit-breaker / bulkhead state across calls have to return the same
+/// <see cref="ResiliencePolicy"/> instance each time.
 /// </summary>
 public sealed class ResilienceBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
     where TRequest : IRequest<TResponse>
 {
-    // Static per TRequest+TResponse combination — resolved once, shared across all behavior instances.
-    private static ResiliencePolicy? _cachedPolicy;
-    private static volatile bool _resolved;
-    private static readonly object Lock = new();
-
     private readonly IResiliencePolicyProvider<TRequest>? _provider;
     private readonly IGlobalResiliencePolicyProvider? _globalProvider;
 
+    /// <summary>Creates the behavior; the first registered provider of each kind is used.</summary>
+    /// <param name="providers">Request-specific policy providers.</param>
+    /// <param name="globalProviders">Fallback policy providers for requests without a specific one.</param>
     public ResilienceBehavior(
         IEnumerable<IResiliencePolicyProvider<TRequest>> providers,
         IEnumerable<IGlobalResiliencePolicyProvider> globalProviders)
@@ -31,34 +32,25 @@ public sealed class ResilienceBehavior<TRequest, TResponse> : IPipelineBehavior<
         _globalProvider = globalProviders.FirstOrDefault();
     }
 
+    /// <inheritdoc/>
     public async Task<TResponse> Handle(
         TRequest request,
-        Func<Task<TResponse>> next,
+        Func<CancellationToken, Task<TResponse>> next,
         CancellationToken cancellationToken)
     {
-        if (!_resolved)
-        {
-            lock (Lock)
-            {
-                if (!_resolved)
-                {
-                    _cachedPolicy = _provider?.GetPolicy(request)
-                        ?? (request is IResilient resilient ? resilient.Policy : null)
-                        ?? _globalProvider?.GetPolicy(request);
-                    _resolved = true;
-                }
-            }
-        }
-
-        ResiliencePolicy? policy = _cachedPolicy;
+#pragma warning disable CS0618 // IResilient is obsolete but still supported for existing requests
+        ResiliencePolicy? policy = _provider?.GetPolicy(request)
+            ?? (request is IResilient resilient ? resilient.Policy : null)
+            ?? _globalProvider?.GetPolicy(request);
+#pragma warning restore CS0618
 
         if (policy == null)
-            return await next().ConfigureAwait(false);
+            return await next(cancellationToken).ConfigureAwait(false);
 
-        var initialProperties = new Dictionary<string, object?> { ["Vali.Request"] = request };
+        var initialProperties = new Dictionary<string, object?> { [Vali_Mediator_Resilience.Core.Context.ResilienceContext.RequestKey] = request };
 
         return await policy.ExecuteAsync(
-            _ => next(),
+            ct => next(ct),
             initialProperties,
             cancellationToken: cancellationToken).ConfigureAwait(false);
     }

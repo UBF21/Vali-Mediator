@@ -1,6 +1,7 @@
 using System.Reflection;
 using Microsoft.Extensions.DependencyInjection;
 using Vali_Mediator.Core.General.Extension;
+using Vali_Mediator_Resilience.Core.Options;
 using Vali_Mediator_Resilience.Core.Registry;
 
 namespace Vali_Mediator_Resilience.Integration;
@@ -39,6 +40,9 @@ public static class ValiMediatorResilienceExtension
     /// <summary>
     /// Registers a resilience policy for <typeparamref name="TRequest"/> via an inline factory lambda.
     /// No class needed — ideal for simple policies defined at startup.
+    /// The factory runs on every request, so the stateful parts of a policy (bulkhead slots, rate-limiter buckets,
+    /// circuit breakers) are new on every call unless you either return the same policy instance each time or
+    /// mark the policy with <see cref="Core.Policies.ResiliencePolicyBuilder.WithSharedState"/>, as below.
     /// </summary>
     /// <example>
     /// <code>
@@ -51,6 +55,7 @@ public static class ValiMediatorResilienceExtension
     ///             opts.Window = TimeSpan.FromSeconds(30);
     ///             opts.PartitionKeyResolver = r => ((LoginCommand)r).UserId;
     ///         })
+    ///         .WithSharedState("login") // without this every request would get a fresh, empty limiter
     ///         .Build());
     /// </code>
     /// </example>
@@ -135,6 +140,27 @@ public static class ValiMediatorResilienceExtension
     public static IServiceCollection AddResilienceRegistry(this IServiceCollection services)
     {
         services.AddSingleton<ICircuitBreakerRegistry, CircuitBreakerRegistry>();
+        return services;
+    }
+
+    /// <summary>
+    /// Configures process-wide resilience limits. The shared-state cap is static because policies built with
+    /// <c>WithSharedState</c> do not go through DI; the last call wins. Existing states are kept.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    /// <param name="configure">Delegate to configure <see cref="ResilienceGlobalOptions"/> (bind it from
+    /// configuration with <c>section.Bind(o)</c>).</param>
+    public static IServiceCollection AddResilienceOptions(
+        this IServiceCollection services,
+        Action<ResilienceGlobalOptions> configure)
+    {
+        if (services is null) throw new ArgumentNullException(nameof(services));
+        if (configure is null) throw new ArgumentNullException(nameof(configure));
+
+        var options = new ResilienceGlobalOptions();
+        configure(options);
+        Core.Pipeline.SharedPolicyStates.Store.SetLimit(options.MaxSharedStates);
+        services.AddSingleton(options);
         return services;
     }
 

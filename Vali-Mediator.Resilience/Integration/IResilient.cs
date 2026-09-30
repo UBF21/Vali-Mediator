@@ -18,7 +18,7 @@ public interface IResilient
 {
     /// <summary>
     /// The resilience policy that wraps this request's handler invocation.
-    /// Called once per request dispatch; consider caching the policy instance as a static field.
+    /// Read on every request dispatch; return a cached instance (e.g. a static field) to preserve circuit-breaker / bulkhead state.
     /// </summary>
     ResiliencePolicy Policy { get; }
 }

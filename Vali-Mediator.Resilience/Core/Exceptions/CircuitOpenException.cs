@@ -12,6 +12,9 @@ public sealed class CircuitOpenException : Exception
     /// <summary>Approximate time remaining before the circuit transitions to HalfOpen.</summary>
     public TimeSpan? RetryAfter { get; }
 
+    /// <summary>Creates the exception for the open circuit <paramref name="circuitKey"/>.</summary>
+    /// <param name="circuitKey">Key of the open circuit.</param>
+    /// <param name="retryAfter">Approximate time before the circuit tries to recover.</param>
     public CircuitOpenException(string circuitKey, TimeSpan? retryAfter = null)
         : base($"Circuit breaker '{circuitKey}' is open. Requests are blocked until the circuit recovers.")
     {
@@ -19,6 +22,9 @@ public sealed class CircuitOpenException : Exception
         RetryAfter = retryAfter;
     }
 
+    /// <summary>Creates the exception with a custom message.</summary>
+    /// <param name="circuitKey">Key of the open circuit.</param>
+    /// <param name="message">The error message.</param>
     public CircuitOpenException(string circuitKey, string message) : base(message)
     {
         CircuitKey = circuitKey;
