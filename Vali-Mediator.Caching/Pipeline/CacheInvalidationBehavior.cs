@@ -1,5 +1,6 @@
 using Vali_Mediator.Core.General.Behavior;
 using Vali_Mediator.Core.Request;
+using Vali_Mediator.Core.Result;
 using Vali_Mediator_Caching.Core.Abstractions;
 using Vali_Mediator_Caching.Core.Interfaces;
 
@@ -30,12 +31,12 @@ public sealed class CacheInvalidationBehavior<TRequest, TResponse> : IPipelineBe
     /// <inheritdoc />
     public async Task<TResponse> Handle(
         TRequest request,
-        Func<Task<TResponse>> next,
+        Func<CancellationToken, Task<TResponse>> next,
         CancellationToken cancellationToken)
     {
-        var result = await next().ConfigureAwait(false);
+        var result = await next(cancellationToken).ConfigureAwait(false);
 
-        if (request is not IInvalidatesCache invalidator)
+        if (request is not IInvalidatesCache invalidator || (result is IResult outcome && outcome.IsFailure))
             return result;
 
         foreach (var key in invalidator.InvalidatedKeys)

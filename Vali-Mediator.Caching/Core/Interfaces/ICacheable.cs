@@ -14,6 +14,13 @@ public interface ICacheable
     /// <summary>
     /// Gets the unique cache key that identifies the result of this request.
     /// </summary>
+    /// <remarks>
+    /// The key is used exactly as returned. Two requests that produce the same key share the same
+    /// cached response, so include the user or tenant (and any other input that changes the response)
+    /// in the key; otherwise one caller can receive another caller's data. Keep the key short and
+    /// bounded: the built-in store ignores keys longer than <c>InMemoryCacheOptions.MaxKeyLength</c>.
+    /// The cached instance is shared by every caller, so responses should be immutable.
+    /// </remarks>
     string CacheKey { get; }
 
     /// <summary>
@@ -33,6 +40,9 @@ public interface ICacheable
     /// Gets an optional group name used for bulk invalidation.
     /// All keys registered under the same group can be evicted at once via
     /// <see cref="Core.Abstractions.ICacheStore.RemoveByGroupAsync"/>.
+    /// The group is only indexed by the behavior when the store implements
+    /// <see cref="Core.Abstractions.IGroupAwareCacheStore"/>; other stores must
+    /// associate keys with groups themselves (for example through native tagging).
     /// </summary>
     string? CacheGroup { get; }
 
