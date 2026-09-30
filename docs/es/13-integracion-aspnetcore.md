@@ -20,6 +20,8 @@ El enum `ErrorType` se mapea naturalmente a códigos de estado HTTP:
 | `Forbidden` | 403 Forbidden | `Results.Forbid` / `Forbid` |
 | `Failure` | 500 Internal Server Error | `Results.Problem` / `Problem` |
 
+> El paquete `Vali-Mediator.AspNetCore` incluye este mapeo listo para usar (`ToActionResult()` / `ToHttpResult()`), con los mismos códigos de estado, títulos y cuerpos en MVC y Minimal API. Una respuesta `Failure` (500) usa por defecto un `detail` genérico para no filtrar mensajes internos; pasa `new ResultHttpOptions { ExposeErrorDetails = true }` para incluir `Result.Error` (por ejemplo en desarrollo). Los errores de cliente (4xx) siempre incluyen el mensaje.
+
 ---
 
 ## Métodos de Extensión (Patrón Recomendado)
@@ -334,7 +336,7 @@ builder.Services.AddScoped<IProductRepository, ProductRepository>();
 builder.Services.AddValiMediator(config =>
 {
     config.RegisterServicesFromAssemblyContaining<Program>();
-    config.AddRequestBehavior<LoggingBehavior<,>>(ServiceLifetime.Singleton);
+    config.AddRequestBehavior(typeof(LoggingBehavior<,>), ServiceLifetime.Singleton);
 });
 
 var app = builder.Build();

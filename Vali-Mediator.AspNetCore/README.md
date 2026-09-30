@@ -29,6 +29,18 @@ Provides two extension methods on `Result<T>` and `Result`:
 | `Forbidden` | 403 Forbidden |
 | `Failure` | 500 Internal Server Error |
 
+`ToActionResult()` (MVC) and `ToHttpResult()` (Minimal API) return the same status codes, titles and bodies.
+
+### Error details on 500
+
+By default a `Failure` (500) response carries a generic `detail` (`"An unexpected error occurred."`) so internal messages, such as exception text, are not leaked to clients. Client errors (4xx) always include the message. To expose the message (for example in development):
+
+```csharp
+var options = new ResultHttpOptions { ExposeErrorDetails = app.Environment.IsDevelopment() };
+return result.ToHttpResult(options);      // Minimal API
+return result.ToActionResult(options);    // MVC
+```
+
 When `Result<T>` carries structured `ValidationErrors` (a dictionary keyed by property name), the 400 response uses `ValidationProblemDetails` for a structured error body.
 
 ## Usage: MVC Controllers
