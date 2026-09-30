@@ -8,9 +8,9 @@ namespace Vali_Mediator_Resilience.Tests;
 
 // ── Stub types used only in these tests ────────────────────────────────────
 
-public class SampleRequest;
-public class AnotherRequest;
-public class UnrelatedRequest;
+public class SampleRequest { }
+public class AnotherRequest { }
+public class UnrelatedRequest { }
 
 public class SampleRequestPolicyProvider : IResiliencePolicyProvider<SampleRequest>
 {

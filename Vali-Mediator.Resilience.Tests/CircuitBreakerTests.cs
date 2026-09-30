@@ -85,7 +85,8 @@ public class CircuitBreakerTests
     [Fact]
     public async Task CircuitBreaker_AfterBreakDuration_TransitionsToHalfOpen()
     {
-        var registry = new CircuitBreakerRegistry();
+        var clock = new ManualClock();
+        var registry = new ClockedRegistry(clock);
         var policy = BuildPolicy("cb-halfopen",
             failureThreshold: 2,
             breakDuration: TimeSpan.FromMilliseconds(50),
@@ -99,7 +100,7 @@ public class CircuitBreakerTests
 
         Assert.Equal(CircuitState.Open, registry.GetState("cb-halfopen"));
 
-        await Task.Delay(80); // wait for break duration
+        clock.Advance(TimeSpan.FromMilliseconds(80));
 
         // Next call should be allowed (HalfOpen probe)
         int result = await policy.ExecuteAsync(_ => Task.FromResult(99));
@@ -111,7 +112,8 @@ public class CircuitBreakerTests
     [Fact]
     public async Task CircuitBreaker_HalfOpenProbeSucceeds_ClosesCircuit()
     {
-        var registry = new CircuitBreakerRegistry();
+        var clock = new ManualClock();
+        var registry = new ClockedRegistry(clock);
         var policy = BuildPolicy("cb-probe-success",
             failureThreshold: 2,
             breakDuration: TimeSpan.FromMilliseconds(50),
@@ -122,7 +124,7 @@ public class CircuitBreakerTests
             try { await policy.ExecuteAsync<int>(_ => throw new Exception("fail")); } catch { }
         }
 
-        await Task.Delay(80);
+        clock.Advance(TimeSpan.FromMilliseconds(80));
 
         await policy.ExecuteAsync(_ => Task.FromResult(1));
 
@@ -132,7 +134,8 @@ public class CircuitBreakerTests
     [Fact]
     public async Task CircuitBreaker_HalfOpenProbeFails_ReopensCircuit()
     {
-        var registry = new CircuitBreakerRegistry();
+        var clock = new ManualClock();
+        var registry = new ClockedRegistry(clock);
         var policy = BuildPolicy("cb-probe-fail",
             failureThreshold: 2,
             breakDuration: TimeSpan.FromMilliseconds(50),
@@ -144,7 +147,7 @@ public class CircuitBreakerTests
             try { await policy.ExecuteAsync<int>(_ => throw new Exception("fail")); } catch { }
         }
 
-        await Task.Delay(80);
+        clock.Advance(TimeSpan.FromMilliseconds(80));
 
         // Probe fails — should reopen
         try { await policy.ExecuteAsync<int>(_ => throw new Exception("fail again")); } catch { }
