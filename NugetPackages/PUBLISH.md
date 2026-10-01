@@ -30,8 +30,6 @@ dotnet nuget push "artifacts/Vali-Mediator.3.0.0.nupkg" -s https://api.nuget.org
 dotnet nuget push "artifacts/Vali-Mediator.*.2.0.0.nupkg" -s https://api.nuget.org/v3/index.json -k "$NUGET_API_KEY"
 ```
 
-`.snupkg` symbol packages are pushed automatically alongside the `.nupkg` files.
-
 ## Verify
 
 Check each package page (`https://www.nuget.org/packages/<PackageId>/<version>`), and confirm in a scratch project that a fresh `dotnet add package` of an extension resolves core 3.x.
