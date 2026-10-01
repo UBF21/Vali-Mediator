@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
-## [3.0.0] — Vali-Mediator core · [2.0.0] — extension packages (Unreleased)
+## [3.0.0] — Vali-Mediator core · [2.0.0] — extension packages (2026-10-01)
 
 ### Compatibility
 
@@ -20,6 +20,10 @@ The extension packages call `IPipelineBehavior.Handle(..., Func<CancellationToke
 ### Target frameworks
 
 - **Added `net10.0` target** to Vali-Mediator, AspNetCore, Caching, Idempotency, Observability and Resilience (now `net7.0;net8.0;net9.0;net10.0`). Unit tests run on all four frameworks. `global.json` uses `rollForward: latestMajor`, so the newest installed SDK (10.x) builds every target.
+
+### Packaging
+
+- **Stopped producing `.snupkg` symbol packages.** `DebugType` is already `embedded` (the PDB ships inside each DLL), so the separate symbol package was redundant and added no debugging capability. It also failed the initial 3.0.0 publish when NuGet.org's symbol-package endpoint returned transient `500` errors; removing it eliminates that failure mode entirely.
 
 ### Core-wide changes made during the 3.0 stabilization
 
